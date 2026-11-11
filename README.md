@@ -27,10 +27,19 @@ Educational / Demo — keine medizinische Anwendung, keine klinischen Dosiswerte
 
 ```bash
 npm install
-npm run dev        # Entwicklungsserver
-npm run build      # Production-Build nach dist/
-npm run preview    # Build lokal ausliefern
+npm run dev          # Entwicklungsserver
+npm run build        # Production-Build nach dist/
+npm run build:single # eine einzige, self-contained HTML-Datei: dist/angio-visu.html
+npm run preview      # Build lokal ausliefern
 ```
+
+## Single-File (eine HTML-Datei)
+
+`npm run build:single` packt den kompletten Build (Three.js + App + CSS) inline in eine
+einzige Datei: **`dist/angio-visu.html`**. Diese Datei ist voll interaktiv und lässt sich
+direkt per Doppelklick öffnen (`file://`, kein Server nötig) — die 3D-Szene rendert im
+WebGL-Canvas, Hautdosis-Karte und Dosisverlauf in 2D-Canvas. In CI wird die Datei jedem
+Workflow-Run als Artifact `angio-visu-single-html` angehängt.
 
 ## Smoke-Test (optional)
 

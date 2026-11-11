@@ -16,4 +16,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run build:single
+      - uses: actions/upload-artifact@v4
+        with:
+          name: angio-visu-single-html
+          path: dist/angio-visu.html
+          retention-days: 30
