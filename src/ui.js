@@ -22,6 +22,7 @@ export const state = {
   logScale: false,
   cmap: 'room',
   mode: 'hkl',
+  fieldRes: 8,
   tableX: 0,
   tableZ: 0,
   showOrgans: true,
@@ -116,6 +117,10 @@ export function initUI(actions) {
   });
   $('mode').addEventListener('change', e => {
     state.mode = e.target.value;
+    actions.onChange();
+  });
+  $('fieldRes').addEventListener('change', e => {
+    state.fieldRes = Number(e.target.value);
     actions.onChange();
   });
   $('btnFrontal').addEventListener('click', () => {

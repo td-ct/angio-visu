@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ISO, SID, TABLE_BASE, AORTA_POINTS, OSTIUM, LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS, sampleEllipsoid
 } from '../src/world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, colormapRoom, colormapCloud, ROOM_SCALE_GY, PLANE_SIZE } from '../src/dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, colormapRoom, colormapCloud, ROOM_SCALE_GY, PLANE_SIZE, MAT } from '../src/dose.js';
 
 const W = Number(process.env.PREVIEW_W || 1280);
 const H = Number(process.env.PREVIEW_H || 800);
@@ -213,7 +213,7 @@ const ellPrev = [
   { c: torsoC, r: torsoR, mu: 1 },
   { c: headC, r: headR, mu: 1 },
   { c: headC, r: headR.clone().multiplyScalar(1.18), mu: 1.9 },
-  { c: new THREE.Vector3(0, -0.035 + TY, 0), r: new THREE.Vector3(0.28, 0.035, 1.05), mu: 1 }
+  { c: new THREE.Vector3(0, -0.05 + TY, 0), r: new THREE.Vector3(0.28, 0.05, 1.05), mu: 1 }
 ];
 const geom = computeBeamGeometry(srcW, bd, ISO, SID, ellPrev, 0.7);
 const sim = new DoseSim();
@@ -243,9 +243,17 @@ for (const w of [u, vv]) {
 }
 
 const field = new DoseField(ISO);
+field.fillMaterials([
+  { kind: 'ell', c: { x: torsoC.x, y: torsoC.y, z: torsoC.z }, r: { x: torsoR.x, y: torsoR.y, z: torsoR.z }, m: MAT.WATER },
+  { kind: 'ell', c: { x: headC.x, y: headC.y, z: headC.z }, r: { x: headR.x, y: headR.y, z: headR.z }, m: MAT.WATER },
+  { kind: 'ell', c: { x: headC.x, y: headC.y, z: headC.z }, r: { x: headR.x * 1.18, y: headR.y * 1.18, z: headR.z * 1.18 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: -0.05 + TY, z: 0 }, r: { x: 0.28, y: 0.05, z: 1.05 }, m: MAT.TABLE },
+  { kind: 'sph', c: { x: srcW.x, y: srcW.y, z: srcW.z }, r: 0.13, m: MAT.METAL },
+  { kind: 'sph', c: { x: det.x, y: det.y, z: det.z }, r: 0.26, m: MAT.METAL }
+]);
 for (let s = 0; s < 1800; s++) {
   field.accumulate(1, params, geom, ellPrev);
-  if (s % 10 === 9) field.accumulateScatter(10, params, geom, ellPrev);
+  if (s % 10 === 9) field.accumulateScatter(10, params, geom);
 }
 {
   const n = field.n, h = field.size / 2, cell = field.size / n;

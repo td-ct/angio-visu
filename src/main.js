@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, scatterSources, scatterRateAt, cellDoseRate } from './dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, cellDoseRate, MAT } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 import { openPlaneSnapshot } from './snapshot.js';
 
@@ -38,8 +38,54 @@ const world = buildWorld(scene);
 const sim = new DoseSim();
 sim.attachSkin(world.nPts);
 let isoVec = ISO.clone();
-const field = new DoseField(isoVec);
+let field = new DoseField(isoVec);
 world.setIso(isoVec);
+
+function materialShapes() {
+  const o = world.tableOff;
+  const ty = world.tableY;
+  const shapes = [];
+  for (const l of world.ellipsoidsLocal) {
+    const m = (l.mu ?? 1) > 1.5 ? MAT.BONE : (l.c.y < 0 ? MAT.TABLE : MAT.WATER);
+    shapes.push({ kind: 'ell', c: { x: l.c.x + o.x, y: l.c.y + ty, z: l.c.z + o.z }, r: l.r, m });
+  }
+  for (const sx of [-1, 1]) {
+    shapes.push({ kind: 'ell', c: { x: sx * 0.085 + o.x, y: 0.055 + ty, z: 0.65 + o.z }, r: { x: 0.062, y: 0.062, z: 0.28 }, m: MAT.WATER });
+    shapes.push({ kind: 'ell', c: { x: sx * 0.235 + o.x, y: 0.06 + ty, z: -0.05 + o.z }, r: { x: 0.042, y: 0.042, z: 0.24 }, m: MAT.WATER });
+  }
+  const sw = world.getSourceWorld(new THREE.Vector3());
+  world.gantry.updateMatrixWorld(true);
+  const dw = new THREE.Vector3(0, SID / 2, 0).applyMatrix4(world.gantry.matrixWorld);
+  shapes.push({ kind: 'sph', c: { x: sw.x, y: sw.y, z: sw.z }, r: 0.13, m: MAT.METAL });
+  shapes.push({ kind: 'sph', c: { x: dw.x, y: dw.y, z: dw.z }, r: 0.26, m: MAT.METAL });
+  for (let a = 0; a < 4; a++) {
+    const ang = Math.PI / 2 + (a + 0.5) / 4 * Math.PI;
+    const lp = new THREE.Vector3(Math.cos(ang) * SID / 2, Math.sin(ang) * SID / 2, 0).applyMatrix4(world.gantry.matrixWorld).add(isoVec);
+    shapes.push({ kind: 'sph', c: { x: lp.x, y: lp.y, z: lp.z }, r: 0.055, m: MAT.METAL });
+  }
+  shapes.push({ kind: 'box', c: { x: -1.05, y: 0.5, z: -0.35 }, hx: 0.12, hy: 0.5, hz: 0.12, m: MAT.METAL });
+  shapes.push({ kind: 'box', c: { x: -0.775, y: 1.0, z: -0.35 }, hx: 0.275, hy: 0.07, hz: 0.07, m: MAT.METAL });
+  shapes.push({ kind: 'box', c: { x: 0, y: ty - 0.47, z: 0 }, hx: 0.15, hy: Math.max(0.05, ty / 2), hz: 0.225, m: MAT.METAL });
+  return shapes;
+}
+
+let lastGeomKey = '';
+function refreshMaterialsIfDirty() {
+  const key = [smooth.rao, smooth.cran, smooth.table, world.tableOff.x, world.tableOff.z, state.mode].map(v => v.toFixed(3)).join('|');
+  if (key !== lastGeomKey) {
+    lastGeomKey = key;
+    field.center.copy(isoVec);
+    field.fillMaterials(materialShapes());
+  }
+}
+
+function rebuildField() {
+  const n = Math.round(4.0 / (state.fieldRes / 100));
+  field = new DoseField(isoVec, n);
+  field.fillMaterials(materialShapes());
+  world.rebuildCloud(n);
+  world.updateCloud(field, fieldOpts(1000), null);
+}
 world.setPlane(state.planeAxis, state.planeOff / 100);
 let lastMode = state.mode;
 
@@ -99,7 +145,8 @@ function currentTableY() {
 
 const srcV = new THREE.Vector3();
 const dirV = new THREE.Vector3();
-let lastGeom = null, lastParams = null, lastEll = null, lastSources = [];
+let lastGeom = null, lastParams = null, lastEll = null;
+let lastRes = 8;
 const ELL_NAMES = ['Weichteil (Wasser)', 'Weichteil (Wasser)', 'Schädelknochen', 'Tischplatte'];
 
 function refreshSkinColors() {
@@ -156,7 +203,6 @@ function frame() {
   lastGeom = geom;
   lastParams = doseParams();
   lastEll = ell;
-  lastSources = scatterSources(geom, ell, lastParams);
 
   const running = state.fluoro || state.cine;
   const beamOn = running || collimating;
@@ -165,13 +211,16 @@ function frame() {
   world.screen.material.opacity = running ? 0.22 + 0.1 * Math.sin(t * 26) : 0.1;
   world.beamLight.intensity = beamOn ? (collimating ? 9 : 5 + 2 * Math.sin(t * 26)) : 0;
 
+  refreshMaterialsIfDirty();
+
   if (running) {
     const params = doseParams();
-    sim.accumulate(dt, params, geom, { n: world.nPts, pos: world.skinPos, nor: world.skinNor }, tableY, ell);
+    const lookup = (x, y, z) => field.scatterRateAt(x, y, z);
+    sim.accumulate(dt, params, geom, { n: world.nPts, pos: world.skinPos, nor: world.skinNor }, tableY, ell, lookup);
     field.accumulate(dt, params, geom, ell);
     scatterAcc += dt;
-    if (scatterAcc >= 0.12) {
-      field.accumulateScatter(scatterAcc, params, geom, ell);
+    if (scatterAcc >= 0.25) {
+      field.accumulateScatter(scatterAcc, params, geom);
       scatterAcc = 0;
     }
     refreshSkinColors();
@@ -212,9 +261,9 @@ function frame() {
     }
     const isRate = state.fieldQuantity === 'rate';
     const params = doseParams();
-    const sources = scatterSources(geom, ell, params);
+    const lookup = (x, y, z) => field.scatterRateAt(x, y, z);
     const sampOpts = isRate
-      ? { rate: true, params, geom, ell: lastEll, sources }
+      ? { rate: true, params, geom, ell: lastEll, scatterLookup: lookup }
       : {};
     const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, sampOpts);
     const fo = fieldOpts(s.max * (isRate ? 3600 : 1000));
@@ -223,7 +272,7 @@ function frame() {
     }
     if (state.fieldMode !== 'plane') {
       const rateFn = isRate
-        ? (x, y, z) => cellDoseRate(params, geom, lastEll, x, y, z) + scatterRateAt({ x, y, z }, sources, params.kVp, lastEll)
+        ? (x, y, z) => cellDoseRate(params, geom, lastEll, x, y, z) + field.scatterRateAt(x, y, z)
         : null;
       world.updateCloud(field, fo, rateFn);
     }
@@ -251,6 +300,10 @@ initUI({
   onChange() {
     world.setLayers({ organs: state.showOrgans, bone: state.showBone, brain: state.showBrain });
     world.setTableOffset(state.tableX / 100, state.tableZ / 100);
+    if (state.fieldRes !== lastRes) {
+      lastRes = state.fieldRes;
+      rebuildField();
+    }
   },
   onContrast() {
     if (contrast.phase === 'idle' || contrast.phase === 'fade') {
@@ -261,7 +314,7 @@ initUI({
   onSnapshot() {
     if (!lastGeom) return;
     const isRate = state.fieldQuantity === 'rate';
-    const s = field.sample(state.planeAxis, state.planeOff / 100, 64, isRate ? { rate: true, params: lastParams, geom: lastGeom, sources: lastSources, ell: lastEll } : {});
+    const s = field.sample(state.planeAxis, state.planeOff / 100, 64, isRate ? { rate: true, params: lastParams, geom: lastGeom, ell: lastEll, scatterLookup: (x, y, z) => field.scatterRateAt(x, y, z) } : {});
     const fo = fieldOpts(s.max * (isRate ? 3600 : 1000));
     const labeledEll = lastEll.map((e, i) => ({ ...e, name: ELL_NAMES[i] || 'Weichteil (Wasser)' }));
     openPlaneSnapshot({
@@ -283,7 +336,7 @@ initUI({
       planeAxes: world.planeAxes,
       params: lastParams,
       geom: lastGeom,
-      sources: lastSources
+
     });
   },
   onReset() {

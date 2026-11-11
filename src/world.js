@@ -364,12 +364,17 @@ export function buildWorld(scene) {
   planeMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(planeGeo), new THREE.LineBasicMaterial({ color: 0x64748b })));
   scene.add(planeMesh);
 
-  const cn = FIELD_N;
-  const cloudGeo = new THREE.BufferGeometry();
-  const cpos = new Float32Array(cn ** 3 * 3);
-  const ccol = new Float32Array(cn ** 3 * 3);
-  const calpha = new Float32Array(cn ** 3);
-  {
+  let cn = FIELD_N;
+  let cloudGeo = new THREE.BufferGeometry();
+  let ccol = null;
+  let calpha = null;
+  function buildCloudGeo(nn) {
+    cn = nn;
+    cloudGeo.dispose();
+    cloudGeo = new THREE.BufferGeometry();
+    const cpos = new Float32Array(cn ** 3 * 3);
+    ccol = new Float32Array(cn ** 3 * 3);
+    calpha = new Float32Array(cn ** 3);
     const h = FIELD_SIZE / 2, cell = FIELD_SIZE / cn;
     let p = 0;
     for (let k = 0; k < cn; k++) {
@@ -382,15 +387,19 @@ export function buildWorld(scene) {
         }
       }
     }
+    cloudGeo.setAttribute('position', new THREE.BufferAttribute(cpos, 3));
+    cloudGeo.setAttribute('aColor', new THREE.BufferAttribute(ccol, 3));
+    cloudGeo.setAttribute('aAlpha', new THREE.BufferAttribute(calpha, 1));
+    cloud.geometry = cloudGeo;
+    cloudMat.uniforms.uSize.value = (FIELD_SIZE / cn * 2.6);
   }
-  cloudGeo.setAttribute('position', new THREE.BufferAttribute(cpos, 3));
-  cloudGeo.setAttribute('aColor', new THREE.BufferAttribute(ccol, 3));
-  cloudGeo.setAttribute('aAlpha', new THREE.BufferAttribute(calpha, 1));
   const cloudMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
+    uniforms: { uSize: { value: (FIELD_SIZE / cn * 2.6) } },
     vertexShader: `
+      uniform float uSize;
       attribute vec3 aColor;
       attribute float aAlpha;
       varying vec3 vC;
@@ -399,7 +408,7 @@ export function buildWorld(scene) {
         vC = aColor;
         vA = aAlpha;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = ${(FIELD_SIZE / cn * 2.6).toFixed(4)} * (280.0 / max(1.0, -mv.z));
+        gl_PointSize = uSize * (280.0 / max(1.0, -mv.z));
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -428,7 +437,7 @@ export function buildWorld(scene) {
       { c: torsoC.clone(), r: torsoR.clone(), mu: 1 },
       { c: headC.clone(), r: headR.clone(), mu: 1 },
       { c: headC.clone(), r: headR.clone().multiplyScalar(1.18), mu: 1.9 },
-      { c: new THREE.Vector3(0, -0.035, 0), r: new THREE.Vector3(0.28, 0.035, 1.05), mu: 1 }
+      { c: new THREE.Vector3(0, -0.05, 0), r: new THREE.Vector3(0.28, 0.05, 1.05), mu: 1 }
     ],
     tableMesh: mattress,
     tableOff: { x: 0, z: 0 },
@@ -560,6 +569,9 @@ export function buildWorld(scene) {
     },
     setCloudVisible(b) {
       cloud.visible = b;
+    },
+    rebuildCloud(n) {
+      buildCloudGeo(n);
     },
     updateCloud(field, o, rateFn) {
       const n = field.n;

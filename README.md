@@ -65,13 +65,14 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     Inferno, Blau→Rot
   - Skala: **Default 0 bis Max auf der Ebene** (auto, je Einheit µSv bzw. mSv/h); rechts im Menü:
     **🔒 Scale-Lock** + **Min**- und **Max**-Eingabefelder (Default 0 / 1000) + **lin/log10-Umschalter**
-  - Abstandsabhängigkeit (Unter-Tisch-Röhre, 81 kVp, mittel, 37-cm-Feld, lateral):
-    **~3,2 mSv/h @ 1 m, ~0,8 mSv/h @ 2 m, ~0,35 mSv/h @ 3 m** (≈ 1/d²) — passt zu Literatur:
+  - Abstandsabhängigkeit (Unter-Tisch-Röhre, 81 kVp, 20 mA, 15 fps, 30-cm-Feld, lateral):
+    **~5 mSv/h @ 1 m, ~0,4–0,6 mSv/h @ 2 m** (≈ 1/d²) — passt zu Literatur:
     „nahe am Patienten einige mSv/h, auch bei einigen Metern noch einige Hundert µSv/h“
     (z. B. asu-arbeitsmedizin.com Strahlenschutz-Durchleuchtung; JSCAI 2025 Phantomstudie:
     meiste Streustrahlung auf der Röhrenseite/unter dem Tisch, Kopfnähe ~4× Bedienposition;
     Augenlinse bis ~20 mSv/h im Cine ohne Deckenschutz — ScienceDirect 2014). Winkelabhängig:
-    bei 2 m ~350–475 µSv/h lateral, mehr in/nahe der Strahlachse; ~1350–1700 µSv/h bei 110 kVp
+    ~400–600 µSv/h bei 2 m lateral, deutlich weniger hinter Detektor/C-Bogen (Metall-Schatten),
+    mehr auf der Röhrenseite; steigt mit kVp (110 kVp etwa Faktor ~2,5 gegenüber 81 kVp)
   - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (µSv/h)**
   - die Ebene lässt sich **per Klick + Maus-Ziehen entlang der gewählten Achse (Normalen)**
     verschieben (Position im CT-System relativ zum Isozentrum); Orientierung über
@@ -80,20 +81,33 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     neuen Tab — mit **Durchstoßungslinie des Nutzstrahls, gefärbt nach durchstoßenem Material**
     (Tisch / Schädelknochen / Weichteil-Wasser), **im Bild eingebetteter Farbskala mit Einheit
     (µSv bzw. µSv/h) und Beschriftung am unteren Rand** (Ebene, Offset, Modus, log/linear)
-- **Streu-Modell** (leichtgewichtige physikalische Approximation, kVp-abhängig):
+- **Streu-Modell v2** (Quellen auf Voxel-Materialraster + Ray-Marching-Transport):
   - kV-Schnellwahl (70/81/90/100/110 kV) + Slider 60–120 kVp
   - Streufaktor `SPR(kVp, Feld) = 0.08·(A/100cm²)^0.35·(kVp/80)^1.5` und Rückstreufaktor
-    `BSF = 1 + min(0.5, 0.25·(A/100)^0.3·(80/kVp)^1.2)` — BSF nimmt mit kVp ab (harte Strahlung
-    streut weniger zurück); Anzeige von SPR/BSF im Dosis-Monitor
-  - 8 Streuquellen entlang des Nutzstrahls im Patienten (Primärdosis dort × SPR, gewichtet);
-    Streuung in **alle Richtungen** mit `1/d²` (Nahfeld abgeweicht via `sqrt(d²+R0²)`, R0=0,12 m,
-    kalibriert auf einige 100 µSv/h in 2 m), Abschwächung auf dem Streuweg durch den Patienten
-    via µ(E_scat ≈ 0,4·kVp) über die Körperschnittlänge
-  - Dosisfeld deckt den ganzen Raum ab (4-m-Raster um das Isozentrum); Streuung wird in alle
-    Voxel bis ~2,2 m um die Patientenmitte akkumuliert
-  - Hautdosis: Eintritt = Primär × BSF (Rückstreuung zur Quelle) + Streuung aus seitlichen
-    Richtungen (Rückwärts-Konus dort doppelt gezählt → dort exkludiert); Ka,r am IRP inkl. Streuanteil;
-    Dosisfeld im Raum erhält Primär (im Strahl) + Streuung (alle Voxel nahe der Patientenmitte)
+    `BSF = 1 + min(0.5, 0.25·(A/100)^0.3·(80/kVp)^1.2)` — BSF nimmt mit kVp ab; Anzeige von SPR/BSF im Dosis-Monitor
+  - **Materialraster** über den ganzen Raum (4 m um das Isozentrum, Zellgröße wählbar **8/5/4 cm**):
+    Luft / Wasser (Patient: Torso, Kopf, Gliedmaßen) / Knochen (Schädelkalotte, µ×1,9) /
+    wasseräquivalente Tischplatte / Metall (Röhrengehäuse, Detektor, C-Bogen, Sockel, µ×8)
+  - **Streuquellen**: der Nutzstrahl wird auf 7 parallelen Strahlen durch das Feld gemarcht; jedes
+    Voxel aus massivem Material, das der Strahl kreuzt, wird Quelle mit Leistung
+    `Primär(t) · SPR · Feldfläche · Zelle` (Metall ×2,5) — also Patientenvolumen, Tisch,
+    Röhrengehäuse und Detektor
+  - **Transport**: von jeder Quelle Fibonacci-Strahlen (96/128 Richtungen) bis 3 m; aufsummiert wird
+    `Leistung · exp(−µ_s · Weg) / (4πd²)` mit µ_s = µ_Wasser(0,45·kVp) × Materialskalierung entlang
+    des Wegs (in Luft reines 1/d², in Metall stark abgeschattet → Schatten hinter Detektor/C-Bogen,
+    Abschwächung durch Patient/Schädel auf dem Streuweg); Ablage auf einem 2× gröberen
+    Streu-Raster + 3 Glättungspässe (diffuse Wolke ohne Löcher)
+  - **Kalibrierung**: Normierung auf **~5 mSv/h bei 1 m lateral** (81 kVp, 20 mA, 15 fps, 30-cm-Feld),
+    linear skaliert mit `Y(kVp)·mAs·fps` → ~1/d² mit Abstand, bei 2 m einige 100 µSv/h
+  - Dosisfeld deckt den ganzen Raum ab; Primär (im Strahlkegel) und Streuung akkumulieren getrennt
+    (`data` = Dosis, `scatterRate` = Dosisleistung)
+  - Hautdosis: Eintritt = Primär × BSF (Rückstreuung zur Quelle) + Streuanteil aus dem Raumfeld;
+    Ka,r am IRP inkl. Streuanteil
+  - **Zur Library-Frage (FEM/Octree mit variabler Zellgröße 30/15/5/1 cm):** es gibt keine reife,
+    getestete JS-Bibliothek für Röntgen-Streutransport. Goldstandard sind C++/Java/Python-Werkzeuge
+    (Geant4, MCNP, SpekCalc/SpekPy) — als Web-App zu schwer. Implementiert ist daher ein
+    deterministisches Ray-Marching auf einem **uniformen Voxel-Raster** mit wählbarer Zellgröße
+    (8/5/4 cm statt adaptiver 30/15/5/1-cm-Zellen; Octree/FEM wäre als Erweiterung möglich).
 
 ## Start
 

@@ -40,65 +40,23 @@ export function scatterFraction(kVp, fieldAtDet = 0.3) {
   return Math.min(0.8, 0.08 * Math.pow(area / 100, 0.35) * Math.pow(kVp / 80, 1.5));
 }
 
-export const SCATTER_SOURCES = 8;
+export const MAT = { AIR: 0, WATER: 1, BONE: 2, METAL: 3, TABLE: 4 };
+const MAT_MU_SCALE = [0, 1, 1.9, 8, 1];
 
-export function scatterSources(geom, ellipsoidsWorld, params) {
-  const src = geom.source, bd = geom.beamDir;
-  let t0 = Infinity, t1 = -Infinity;
-  for (const e of ellipsoidsWorld) {
-    const h = rayEllipsoid(src, bd, e.c, e.r);
-    if (h && h[1] > 0) {
-      t0 = Math.min(t0, Math.max(0, h[0]));
-      t1 = Math.max(t1, h[1]);
-    }
-  }
-  const out = [];
-  if (!(t1 > t0)) return out;
-  const { kVp, mA, pwMs, fps, cine } = params;
-  const Y = outputMicroGyPerMas(kVp) / 1000;
-  const mu = muWater(effectiveEnergy(kVp));
-  const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
-  const fs = scatterFraction(kVp, geom.fieldAtDet);
-  const n = SCATTER_SOURCES;
+export function fibDirs(n) {
+  const dirs = [];
+  const ga = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < n; i++) {
-    const t = t0 + ((i + 0.5) / n) * (t1 - t0);
-    const p = src.clone().addScaledVector(bd, t);
-    const prim = Y * mAs * (1 / t) ** 2 * Math.exp(-mu * (t - t0)) * fps;
-    out.push({ p, s: prim * fs / n });
+    const y = 1 - (i / (n - 1)) * 2;
+    const rad = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = ga * i;
+    dirs.push({ x: Math.cos(th) * rad, y, z: Math.sin(th) * rad });
   }
-  return out;
+  return dirs;
 }
 
-export function pathThrough(o, dir, dist, ellipsoidsWorld) {
-  let total = 0;
-  for (const e of ellipsoidsWorld) {
-    const h = rayEllipsoid(o, dir, e.c, e.r);
-    if (h) {
-      const a = Math.max(0, h[0]);
-      const b = Math.min(dist, h[1]);
-      if (b > a) total += (b - a) * (e.mu ?? 1);
-    }
-  }
-  return total;
-}
-
-export function scatterRateAt(q, sources, kVp, ellipsoidsWorld, excludeBeamDir = null) {
-  if (!sources.length) return 0;
-  const muS = muWater(0.4 * kVp);
-  const R0 = 0.12;
-  let sum = 0;
-  for (const s of sources) {
-    const dx = q.x - s.p.x, dy = q.y - s.p.y, dz = q.z - s.p.z;
-    const d2 = dx * dx + dy * dy + dz * dz;
-    if (d2 < 1e-6) continue;
-    const d = Math.sqrt(d2);
-    const dir = { x: dx / d, y: dy / d, z: dz / d };
-    if (excludeBeamDir && (dir.x * excludeBeamDir.x + dir.y * excludeBeamDir.y + dir.z * excludeBeamDir.z) > 0.8) continue;
-    const exit = pathThrough(s.p, dir, d, ellipsoidsWorld);
-    const dEff2 = d2 + R0 * R0;
-    sum += s.s * (R0 * R0 / dEff2) * Math.exp(-muS * exit);
-  }
-  return sum;
+export function scatterRateAtGrid(field, x, y, z) {
+  return field.scatterRateAt(x, y, z);
 }
 
 const CMAP = [
@@ -266,16 +224,22 @@ export function colormapCloud(t, out = [0, 0, 0]) {
 }
 
 export class DoseField {
-  constructor(center) {
-    this.n = FIELD_N;
+  constructor(center, n = FIELD_N) {
+    this.n = n;
     this.size = FIELD_SIZE;
     this.center = center.clone();
     this.cell = this.size / this.n;
+    this.nc = Math.max(4, Math.round(n / 2));
+    this.cellC = this.size / this.nc;
     this.data = new Float32Array(this.n ** 3);
+    this.scatterRate = new Float32Array(this.nc ** 3);
+    this.scatterTmp = new Float32Array(this.nc ** 3);
+    this.mat = new Uint8Array(this.n ** 3);
     this.max = 0;
   }
   reset() {
     this.data.fill(0);
+    this.scatterRate.fill(0);
     this.max = 0;
   }
   voxelPoint(i, j, k, out) {
@@ -284,6 +248,73 @@ export class DoseField {
     out.y = c.y - h + (j + 0.5) * cell;
     out.z = c.z - h + (k + 0.5) * cell;
     return out;
+  }
+  voxelIndex(x, y, z) {
+    const n = this.n, h = this.size / 2, cell = this.cell, c = this.center;
+    const i = Math.floor((x - c.x + h) / cell);
+    const j = Math.floor((y - c.y + h) / cell);
+    const k = Math.floor((z - c.z + h) / cell);
+    if (i < 0 || j < 0 || k < 0 || i >= n || j >= n || k >= n) return -1;
+    return (k * n + j) * n + i;
+  }
+  coarseIndex(x, y, z) {
+    const nc = this.nc, h = this.size / 2, cellC = this.cellC, c = this.center;
+    const i = Math.floor((x - c.x + h) / cellC);
+    const j = Math.floor((y - c.y + h) / cellC);
+    const k = Math.floor((z - c.z + h) / cellC);
+    if (i < 0 || j < 0 || k < 0 || i >= nc || j >= nc || k >= nc) return -1;
+    return (k * nc + j) * nc + i;
+  }
+  scatterRateAt(x, y, z) {
+    const nc = this.nc, h = this.size / 2, cellC = this.cellC, c = this.center;
+    const fu = (x - c.x + h) / cellC - 0.5;
+    const fv = (y - c.y + h) / cellC - 0.5;
+    const fw = (z - c.z + h) / cellC - 0.5;
+    const i0 = Math.floor(fu), j0 = Math.floor(fv), k0 = Math.floor(fw);
+    if (i0 < -1 || j0 < -1 || k0 < -1 || i0 > nc || j0 > nc || k0 > nc) return 0;
+    const au = fu - i0, av = fv - j0, aw = fw - k0;
+    let sum = 0;
+    for (let dk = 0; dk <= 1; dk++) {
+      const k = k0 + dk;
+      if (k < 0 || k >= nc) continue;
+      for (let dj = 0; dj <= 1; dj++) {
+        const j = j0 + dj;
+        if (j < 0 || j >= nc) continue;
+        const wv = (dj ? av : 1 - av) * (dk ? aw : 1 - aw);
+        for (let di = 0; di <= 1; di++) {
+          const i = i0 + di;
+          if (i < 0 || i >= nc) continue;
+          const w = (di ? au : 1 - au) * wv;
+          sum += this.scatterRate[(k * nc + j) * nc + i] * w;
+        }
+      }
+    }
+    return sum;
+  }
+  fillMaterials(shapes) {
+    const n = this.n;
+    this.mat.fill(MAT.AIR);
+    for (let k = 0; k < n; k++) {
+      for (let j = 0; j < n; j++) {
+        for (let i = 0; i < n; i++) {
+          const id = (k * n + j) * n + i;
+          const p = this.voxelPoint(i, j, k, {});
+          for (const s of shapes) {
+            let inside = false;
+            if (s.kind === 'ell') {
+              const dx = (p.x - s.c.x) / s.r.x, dy = (p.y - s.c.y) / s.r.y, dz = (p.z - s.c.z) / s.r.z;
+              inside = dx * dx + dy * dy + dz * dz <= 1;
+            } else if (s.kind === 'sph') {
+              const dx = p.x - s.c.x, dy = p.y - s.c.y, dz = p.z - s.c.z;
+              inside = dx * dx + dy * dy + dz * dz <= s.r * s.r;
+            } else if (s.kind === 'box') {
+              inside = Math.abs(p.x - s.c.x) <= s.hx && Math.abs(p.y - s.c.y) <= s.hy && Math.abs(p.z - s.c.z) <= s.hz;
+            }
+            if (inside) { this.mat[id] = s.m; break; }
+          }
+        }
+      }
+    }
   }
   accumulate(dt, params, geom, ell) {
     const { kVp, mA, pwMs, fps, cine, fieldFrac } = params;
@@ -321,22 +352,148 @@ export class DoseField {
       }
     }
   }
-  accumulateScatter(dt, params, geom, ell) {
-    const sources = scatterSources(geom, ell, params);
+  accumulateScatter(dt, params, geom) {
+    const n = this.n, cell = this.cell;
+    const { kVp, mA, pwMs, fps, cine } = params;
+    const Y = outputMicroGyPerMas(kVp) / 1000;
+    const muW = muWater(effectiveEnergy(kVp)) * 100;
+    const muS = muWater(0.45 * kVp) * 100;
+    const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
+    const spr = scatterFraction(kVp, geom.fieldAtDet);
+    const src = geom.source, bd = geom.beamDir, sid = geom.sid;
+    const r0 = 0.012, r1 = geom.fieldAtDet / 2;
+
+    let ux = -bd.z, uy = 0, uz = bd.x;
+    const ul = Math.hypot(ux, uy, uz);
+    if (ul < 1e-6) { ux = 1; uy = 0; uz = 0; } else { ux /= ul; uy /= ul; uz /= ul; }
+    const vx = bd.y * uz - bd.z * uy, vy = bd.z * ux - bd.x * uz, vz = bd.x * uy - bd.y * ux;
+
+    const rays = [[0, 0]];
+    for (let a = 0; a < 6; a++) {
+      const th = (a / 6) * 2 * Math.PI + 0.7;
+      rays.push([Math.cos(th) * 0.7, Math.sin(th) * 0.7]);
+    }
+    const nRays = rays.length;
+
+    const sources = [];
+    const step = cell * 0.5;
+    for (const [ox, oy] of rays) {
+      let depth = 0, lastId = -1;
+      for (let t = step; t < sid + 0.5; t += step) {
+        const R = (r0 + (r1 - r0) * (t / sid)) * 0.85;
+        const px = src.x + bd.x * t + (ux * ox + vx * oy) * R;
+        const py = src.y + bd.y * t + (uy * ox + vy * oy) * R;
+        const pz = src.z + bd.z * t + (uz * ox + vz * oy) * R;
+        const id = this.voxelIndex(px, py, pz);
+        if (id < 0) continue;
+        const m = this.mat[id];
+        if (m !== MAT.AIR && id !== lastId && sources.length < 240) {
+          const prim = Y * mAs * (1 / t) ** 2 * Math.exp(-muW * depth) * fps;
+          const f = m === MAT.METAL ? 2.5 : 1;
+          sources.push({ x: px, y: py, z: pz, power: prim * spr * f * (Math.PI * R * R / nRays) * cell / 0.3 });
+          lastId = id;
+        }
+        if (m !== MAT.AIR && m !== MAT.METAL) depth += step;
+      }
+    }
+    this.scatterRate.fill(0);
     if (!sources.length) return;
-    const kVp = params.kVp;
-    const n = this.n, c = this.center, h = this.size / 2, cell = this.cell;
-    const mid = sources[Math.floor(sources.length / 2)].p;
-    const p = { x: 0, y: 0, z: 0 };
-    for (let k = 0; k < n; k++) {
-      for (let j = 0; j < n; j++) {
-        for (let i = 0; i < n; i++) {
-          this.voxelPoint(i, j, k, p);
-          const dx = p.x - mid.x, dy = p.y - mid.y, dz = p.z - mid.z;
-          if (dx * dx + dy * dy + dz * dz > 2.2 * 2.2) continue;
-          const id = (k * n + j) * n + i;
-          this.data[id] += scatterRateAt(p, sources, kVp, ell) * dt;
-          if (this.data[id] > this.max) this.max = this.data[id];
+
+    const CAL = 1.0;
+    const dirs = fibDirs(this.n >= 80 ? 128 : 96);
+    const maxRange = this.size * 0.75;
+    const dMin = 0.1;
+    const nc = this.nc, h = this.size / 2, cellC = this.cellC, c = this.center;
+    const stepD = cell;
+    const wStep = stepD / cellC;
+    for (const s of sources) {
+      for (const dr of dirs) {
+        let pathMu = 0;
+        for (let d = stepD; d < maxRange; d += stepD) {
+          const px = s.x + dr.x * d, py = s.y + dr.y * d, pz = s.z + dr.z * d;
+          const id = this.voxelIndex(px, py, pz);
+          if (id < 0) break;
+          pathMu += MAT_MU_SCALE[this.mat[id]] * muS * stepD;
+          const dd = Math.max(d, dMin);
+          const dep = s.power * CAL * Math.exp(-pathMu) * wStep / (4 * Math.PI * dd * dd);
+          const fu = (px - c.x + h) / cellC - 0.5;
+          const fv = (py - c.y + h) / cellC - 0.5;
+          const fw = (pz - c.z + h) / cellC - 0.5;
+          const i0 = Math.floor(fu), j0 = Math.floor(fv), k0 = Math.floor(fw);
+          const au = fu - i0, av = fv - j0, aw = fw - k0;
+          for (let dk = 0; dk <= 1; dk++) {
+            const k = k0 + dk;
+            if (k < 0 || k >= nc) continue;
+            for (let dj = 0; dj <= 1; dj++) {
+              const j = j0 + dj;
+              if (j < 0 || j >= nc) continue;
+              const wv = (dj ? av : 1 - av) * (dk ? aw : 1 - aw);
+              for (let di = 0; di <= 1; di++) {
+                const i = i0 + di;
+                if (i < 0 || i >= nc) continue;
+                this.scatterRate[(k * nc + j) * nc + i] += dep * (di ? au : 1 - au) * wv;
+              }
+            }
+          }
+        }
+      }
+    }
+    for (let pass = 0; pass < 3; pass++) {
+      const srcA = this.scatterRate, dst = this.scatterTmp;
+      for (let k = 0; k < nc; k++) {
+        for (let j = 0; j < nc; j++) {
+          for (let i = 0; i < nc; i++) {
+            const id = (k * nc + j) * nc + i;
+            let sum = srcA[id] * 4, wsum = 4;
+            for (let dk = -1; dk <= 1; dk++) {
+              const k2 = k + dk;
+              if (k2 < 0 || k2 >= nc) continue;
+              for (let dj = -1; dj <= 1; dj++) {
+                const j2 = j + dj;
+                if (j2 < 0 || j2 >= nc) continue;
+                for (let di = -1; di <= 1; di++) {
+                  if (!dk && !dj && !di) continue;
+                  const i2 = i + di;
+                  if (i2 < 0 || i2 >= nc) continue;
+                  sum += srcA[(k2 * nc + j2) * nc + i2];
+                  wsum += 1;
+                }
+              }
+            }
+            dst[id] = sum / wsum;
+          }
+        }
+      }
+      this.scatterRate.set(dst);
+    }
+    const refDirs = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0]];
+    for (const [dx, dy, dz] of refDirs) {
+      const rx = c.x + dx, ry = c.y + dy, rz = c.z + dz;
+      const rid = this.voxelIndex(rx, ry, rz);
+      if (rid < 0 || this.mat[rid] !== MAT.AIR) continue;
+      const refRaw = this.scatterRateAt(rx, ry, rz);
+      if (refRaw > 0) {
+        const scale = 0.01 * Y * mAs * fps / refRaw;
+        for (let id = 0; id < this.scatterRate.length; id++) this.scatterRate[id] *= scale;
+        break;
+      }
+    }
+    const nc2 = this.nc, ratio = this.n / this.nc;
+    for (let k = 0; k < nc2; k++) {
+      for (let j = 0; j < nc2; j++) {
+        for (let i = 0; i < nc2; i++) {
+          const d = this.scatterRate[(k * nc2 + j) * nc2 + i] * dt;
+          if (d <= 0) continue;
+          const k0 = Math.round(k * ratio), j0 = Math.round(j * ratio), i0 = Math.round(i * ratio);
+          for (let dk = 0; dk < ratio; dk++) {
+            for (let dj = 0; dj < ratio; dj++) {
+              for (let di = 0; di < ratio; di++) {
+                const id = ((k0 + dk) * n + (j0 + dj)) * n + (i0 + di);
+                this.data[id] += d;
+                if (this.data[id] > this.max) this.max = this.data[id];
+              }
+            }
+          }
         }
       }
     }
@@ -370,7 +527,7 @@ export class DoseField {
         const z = c.z + A.n[2] * offset + A.u[2] * pa + A.v[2] * pb;
         let val;
         if (rateMode) {
-          val = cellDoseRate(params, geom, ell, x, y, z) + scatterRateAt({ x, y, z }, opts.sources || [], params.kVp, ell);
+          val = cellDoseRate(params, geom, ell, x, y, z) + (opts.scatterLookup ? opts.scatterLookup(x, y, z) : 0);
         } else {
           const iu = Math.max(0, Math.min(n - 1.001, (pa + h) / cell - 0.5));
           const iv = Math.max(0, Math.min(n - 1.001, (pb + h) / cell - 0.5));
@@ -434,7 +591,7 @@ export class DoseSim {
     this.peak_mGy = 0;
     this.peakIdx = -1;
   }
-  accumulate(dt, params, geom, skin, tableY, ellipsoidsWorld) {
+  accumulate(dt, params, geom, skin, tableY, ellipsoidsWorld, scatterLookup = null) {
     const { kVp, mA, pwMs, fps, cine, fieldFrac } = params;
     const Y = outputMicroGyPerMas(kVp) / 1000;
     const mu = muWater(effectiveEnergy(kVp));
@@ -442,10 +599,8 @@ export class DoseSim {
     const bsf = backscatterFactor(kVp, fieldAtDet);
     const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
     const nPulses = fps * dt;
-    const sources = scatterSources(geom, ellipsoidsWorld, params);
-
     const kaIrp_pulse = Y * mAs * (1 / geom.dSrcIrp) ** 2 * geom.scatter;
-    const scatIrp = sources.length ? scatterRateAt(geom.irp, sources, kVp, ellipsoidsWorld) / fps : 0;
+    const scatIrp = scatterLookup ? scatterLookup(geom.irp.x, geom.irp.y, geom.irp.z) / fps : 0;
     this.kaR_mGy += (kaIrp_pulse + scatIrp) * nPulses;
     this.rate_mGy_s = (kaIrp_pulse + scatIrp) * fps;
 
@@ -484,10 +639,8 @@ export class DoseSim {
         const ka = Y * mAs * (1 / d) ** 2 * bsf * edge * nPulses;
         this.skinDoses[i] += ka;
       }
-      if (sources.length) {
-        const q = { x: px, y: py, z: pz };
-        const scat = scatterRateAt(q, sources, kVp, ellipsoidsWorld, entrance ? bd : null) * dt;
-        this.skinDoses[i] += scat;
+      if (scatterLookup) {
+        this.skinDoses[i] += scatterLookup(px, py, pz) * dt;
       }
       if (this.skinDoses[i] > peak) {
         peak = this.skinDoses[i];

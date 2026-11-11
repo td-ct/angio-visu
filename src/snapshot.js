@@ -41,7 +41,7 @@ function beamSegments(source, beamDir, sid, labeledEll) {
 export function openPlaneSnapshot(opts) {
   const {
     field, axis, offset, isRate, scaleMin, scaleMax, unitFactor, unit, cmap, logScale,
-    source, beamDir, sid, iso, labeledEll, planeAxes, params, geom, sources, ell
+    source, beamDir, sid, iso, labeledEll, planeAxes, params, geom, ell
   } = opts;
 
   const W = 1000, H = 1000, BAR = 110;
@@ -55,7 +55,7 @@ export function openPlaneSnapshot(opts) {
 
   const m = 250;
   const sampOpts = isRate
-    ? { rate: true, params, geom, sources, ell: ell || labeledEll }
+    ? { rate: true, params, geom, ell: ell || labeledEll, scatterLookup: (x, y, z) => field.scatterRateAt(x, y, z) }
     : {};
   const s = field.sample(axis, offset, m, sampOpts);
   const img = ctx.createImageData(m, m);
