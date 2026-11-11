@@ -18,9 +18,19 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
 
 ## Features
 
-- 3D-Szene: Patient auf Kathetertisch, Aorta + Koronargefäße (LM/LAD, LCX, RCA), Herz,
-  C-Bogen mit **Unter-Tisch-Röhre** (Quelle unten, Flächendetektor oben — wie im HKL und in
-  der Neuro real üblich), Strahlenkegel
+- 3D-Szene: **wassergefüllter Modellkörper** (hellblau, halbtransparent) auf dem Kathetertisch,
+  darin schematisch und **per Checkbox schaltbar**: Organe (Lunge/Leber/Magen/Herz), Knochen
+  (Wirbelsäule + **Schädel-Schale** aus Knochenmaterial, transparent), **Gehirn** (scheint durch
+  die Schädel-Schale). Physik: Torso/Kopf = Wasser (µ=1), Schädel-Schale = Knochen (µ≈1,9·µ_Wasser)
+- Tisch: **7 cm wasseräquivalente Platte** (realistisch für Carbon-Tischplatte + Auflage; Frage
+  nach Modellkörper: Carbon ~geringe Schwächung, mit Polster zusammen wenige cm wasseräquivalent —
+  hier 7 cm angesetzt). Unter-Tisch-Röhre: Strahl geht zuerst durch die Tischplatte (attenuiert)
+- **Tisch + Patient verfahrbar**: Slider längs (z, ±80 cm) und quer (x, ±30 cm) sowie per
+  Maus-Drag auf die Tischplatte in deren Ebene (quer ±30 cm, längs bis Sockel-Ende — der Sockel
+  bleibt stehen). C-Bogen/Isozentrum bleiben stehen → SSD/Dosis ändern sich realistisch
+- C-Bogen mit **Unter-Tisch-Röhre** (Quelle unten, Flächendetektor oben — wie im HKL und in
+  der Neuro real üblich), Strahlenkegel; **während der Kollimations-Änderung heller Lichtstrahl**
+- Aorta + Koronargefäße (LM/LAD, LCX, RCA), Strahlenkegel
 - **Umschaltung HKL-Angio ↔ Neuro-Angio** (femoraler vs. radialer Zugang): Katheterpfad,
   Gefäßbaum (Koronarien ↔ Karotis-/Vertebralisbaum) und Isozentrum/C-Bogen-Position (Kopf)
   werden angepasst; Dosis wird zurückgesetzt
@@ -60,8 +70,8 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     Augenlinse bis ~20 mSv/h im Cine ohne Deckenschutz — ScienceDirect 2014). Winkelabhängig:
     bei 2 m ~350–475 µSv/h lateral, mehr in/nahe der Strahlachse; ~1350–1700 µSv/h bei 110 kVp
   - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (µSv/h)**
-  - die Ebene lässt sich zusätzlich **per Drag & Drop entlang ihrer Normale verschieben**
-    (Position wird im CT-System relativ zum Isozentrum übernommen); Orientierung über
+  - die Ebene lässt sich **per Klick + Maus-Ziehen entlang der gewählten Achse (Normalen)**
+    verschieben (Position im CT-System relativ zum Isozentrum); Orientierung über
     Select (Frontal/Sagittal/Axial) oder Snap-Buttons
 - **Streu-Modell** (leichtgewichtige physikalische Approximation, kVp-abhängig):
   - kV-Schnellwahl (70/81/90/100/110 kV) + Slider 60–120 kVp

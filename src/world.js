@@ -141,30 +141,70 @@ export function buildWorld(scene) {
   mattress.position.y = -0.035;
   tableGroup.add(mattress);
   const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.8, 0.45), standMat);
-  pedestal.position.y = -0.47;
-  tableGroup.add(pedestal);
+  pedestal.position.set(0, 0.8 - 0.47, 0);
+  scene.add(pedestal);
 
-  const skinMat = new THREE.MeshStandardMaterial({
-    color: 0xd8a47e, roughness: 0.65, transparent: true, opacity: 0.32, depthWrite: false
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x7dd3fc, roughness: 0.25, transparent: true, opacity: 0.30, depthWrite: false
+  });
+  const organMat = new THREE.MeshStandardMaterial({
+    color: 0xf87171, roughness: 0.5, transparent: true, opacity: 0.4, depthWrite: false
+  });
+  const boneMat = new THREE.MeshStandardMaterial({
+    color: 0xe7e5d8, roughness: 0.6, transparent: true, opacity: 0.30, depthWrite: false
+  });
+  const brainMat = new THREE.MeshStandardMaterial({
+    color: 0xf0abfc, roughness: 0.6, transparent: true, opacity: 0.55, depthWrite: false
   });
   const torsoC = new THREE.Vector3(0, 0.14, -0.02);
   const torsoR = new THREE.Vector3(0.2, 0.14, 0.58);
   const headC = new THREE.Vector3(0.02, 0.17, -0.72);
   const headR = new THREE.Vector3(0.115, 0.125, 0.14);
 
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), skinMat);
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), waterMat);
   torso.scale.copy(torsoR);
   torso.position.copy(torsoC);
   torso.renderOrder = 1;
   tableGroup.add(torso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), skinMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), waterMat);
   head.scale.copy(headR);
   head.position.copy(headC);
   head.renderOrder = 1;
   tableGroup.add(head);
 
-  const limbMat = skinMat;
+  const organsGroup = new THREE.Group();
+  const boneGroup = new THREE.Group();
+  tableGroup.add(organsGroup, boneGroup);
+  const brainMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), brainMat);
+  brainMesh.scale.set(headR.x * 0.72, headR.y * 0.72, headR.z * 0.72);
+  brainMesh.position.copy(headC);
+  brainMesh.renderOrder = 2;
+  tableGroup.add(brainMesh);
+  const skullShell = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), boneMat);
+  skullShell.scale.set(headR.x * 1.18, headR.y * 1.18, headR.z * 1.18);
+  skullShell.position.copy(headC);
+  skullShell.renderOrder = 2;
+  boneGroup.add(skullShell);
+
+  const ellipsoidMesh = (c, r, mat, seg = 28) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, seg, seg / 2), mat);
+    m.scale.copy(r);
+    m.position.copy(c);
+    m.renderOrder = 2;
+    return m;
+  };
+  const ORGANS = [
+    [[0.085, 0.17, -0.26], [0.075, 0.10, 0.15]],
+    [[-0.085, 0.17, -0.26], [0.075, 0.10, 0.15]],
+    [[0.065, 0.10, 0.02], [0.075, 0.05, 0.11]],
+    [[-0.05, 0.08, 0.10], [0.05, 0.06, 0.09]]
+  ];
+  for (const [c, r] of ORGANS) organsGroup.add(ellipsoidMesh(new THREE.Vector3(...c), new THREE.Vector3(...r), organMat));
+  const spine = ellipsoidMesh(new THREE.Vector3(0, 0.115, -0.02), new THREE.Vector3(0.035, 0.032, 0.55), boneMat);
+  boneGroup.add(spine);
+
+  const limbMat = waterMat;
   for (const sx of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.5, 6, 12), limbMat);
     leg.rotation.x = Math.PI / 2;
@@ -184,7 +224,7 @@ export function buildWorld(scene) {
   );
   heart.scale.set(1, 0.9, 0.95);
   heart.position.set(0.035, 0.1, -0.43);
-  tableGroup.add(heart);
+  organsGroup.add(heart);
 
   const vesselMat = new THREE.MeshStandardMaterial({
     color: 0xe11d48, emissive: 0x6d0f24, roughness: 0.35, transparent: true, opacity: 0.95
@@ -385,9 +425,34 @@ export function buildWorld(scene) {
     tableGroup, heart,
     skinPoints, skinPos, skinNor, nPts,
     ellipsoidsLocal: [
-      { c: torsoC.clone(), r: torsoR.clone() },
-      { c: headC.clone(), r: headR.clone() }
+      { c: torsoC.clone(), r: torsoR.clone(), mu: 1 },
+      { c: headC.clone(), r: headR.clone(), mu: 1 },
+      { c: headC.clone(), r: headR.clone().multiplyScalar(1.18), mu: 1.9 },
+      { c: new THREE.Vector3(0, -0.035, 0), r: new THREE.Vector3(0.28, 0.035, 1.05), mu: 1 }
     ],
+    tableMesh: mattress,
+    tableOff: { x: 0, z: 0 },
+    setTableOffset(x, z) {
+      this.tableOff.x = THREE.MathUtils.clamp(x, -0.3, 0.3);
+      this.tableOff.z = THREE.MathUtils.clamp(z, -0.8, 0.8);
+      tableGroup.position.x = this.tableOff.x;
+      tableGroup.position.z = this.tableOff.z;
+    },
+    setLayers(o) {
+      organsGroup.visible = !!o.organs;
+      boneGroup.visible = !!o.bone;
+      brainMesh.visible = !!o.brain;
+    },
+    setCollimating(b) {
+      for (const m of beamOuter) {
+        m.material.uniforms.uI.value = b ? 0.42 : 0.075;
+        m.material.uniforms.uColor.value.set(b ? 0xfff6d8 : 0xffd27a);
+      }
+      for (const m of beamInner) {
+        m.material.uniforms.uI.value = b ? 0.75 : 0.16;
+        m.material.uniforms.uColor.value.set(b ? 0xfff6d8 : 0xffd27a);
+      }
+    },
     aortaCurve, guideCurve, contrastCurve,
     catheterMesh, wireMesh, contrastMesh,
     planeMesh, cloud, PLANE_M,
@@ -463,6 +528,7 @@ export function buildWorld(scene) {
     setTableY(y) {
       tableY = y;
       tableGroup.position.y = y;
+      pedestal.position.y = y - 0.47;
       pedestal.scale.y = Math.max(0.05, y / 0.8);
     },
     setGantry(raoDeg, cranDeg) {

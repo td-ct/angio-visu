@@ -18,7 +18,12 @@ export const state = {
   fieldRate: false,
   logScale: false,
   cmap: 'room',
-  mode: 'hkl'
+  mode: 'hkl',
+  tableX: 0,
+  tableZ: 0,
+  showOrgans: true,
+  showBone: true,
+  showBrain: true
 };
 
 const $ = id => document.getElementById(id);
@@ -54,6 +59,15 @@ export function initUI(actions) {
   bind('table', 'table', Number, ' cm');
   bind('cath', 'cath', v => Number(v) / 100, '%');
   bind('planeOff', 'planeOff', Number, ' cm');
+  bind('tableZ', 'tableZ', Number, ' cm');
+  bind('tableX', 'tableX', Number, ' cm');
+
+  for (const [id, key] of [['showOrgans', 'showOrgans'], ['showBone', 'showBone'], ['showBrain', 'showBrain']]) {
+    $(id).addEventListener('change', e => {
+      state[key] = e.target.checked;
+      actions.onChange();
+    });
+  }
 
   $('fieldMode').addEventListener('change', e => {
     state.fieldMode = e.target.value;

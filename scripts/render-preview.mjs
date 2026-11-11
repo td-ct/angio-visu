@@ -177,10 +177,14 @@ const torsoC = new THREE.Vector3(0, 0.14 + TY, -0.02);
 const torsoR = new THREE.Vector3(0.2, 0.14, 0.58);
 const headC = new THREE.Vector3(0.02, 0.17 + TY, -0.72);
 const headR = new THREE.Vector3(0.115, 0.125, 0.14);
-const skin = [0.85, 0.64, 0.49];
+const skin = [0.49, 0.83, 0.99];
+const bone = [0.91, 0.90, 0.85];
+const brain = [0.94, 0.69, 0.99];
 
 const heartC = new THREE.Vector3(0.035, 0.1 + TY, -0.43);
 sphereMesh(heartC, new THREE.Vector3(0.085, 0.077, 0.081), 20, [0.72, 0.11, 0.11]);
+sphereMesh(headC, headR.clone().multiplyScalar(1.18), 20, bone, 0.28, false);
+sphereMesh(headC, headR.clone().multiplyScalar(0.72), 18, brain, 0.5, false);
 
 const toV3 = list => list.map(p => new THREE.Vector3(p[0], p[1] + TY, p[2]));
 const curvePts = list => new THREE.CatmullRomCurve3(toV3(list), false, 'centripetal').getPoints(80);
@@ -205,10 +209,13 @@ for (const sx of [-1, 1]) {
 }
 
 const bd = new THREE.Vector3(0, 1, 0).applyMatrix4(R).normalize();
-const geom = computeBeamGeometry(srcW, bd, ISO, SID, [
-  { c: torsoC, r: torsoR },
-  { c: headC, r: headR }
-], 0.7);
+const ellPrev = [
+  { c: torsoC, r: torsoR, mu: 1 },
+  { c: headC, r: headR, mu: 1 },
+  { c: headC, r: headR.clone().multiplyScalar(1.18), mu: 1.9 },
+  { c: new THREE.Vector3(0, -0.035 + TY, 0), r: new THREE.Vector3(0.28, 0.035, 1.05), mu: 1 }
+];
+const geom = computeBeamGeometry(srcW, bd, ISO, SID, ellPrev, 0.7);
 const sim = new DoseSim();
 const torsoS = sampleEllipsoid(new THREE.Vector3(0, 0.14, -0.02), new THREE.Vector3(0.2, 0.14, 0.58), 1400);
 const headS = sampleEllipsoid(new THREE.Vector3(0.02, 0.17, -0.72), new THREE.Vector3(0.115, 0.125, 0.14), 300);
@@ -219,9 +226,7 @@ skinPos.set(torsoS.pos); skinPos.set(headS.pos, 1400 * 3);
 skinNor.set(torsoS.nor); skinNor.set(headS.nor, 1400 * 3);
 sim.attachSkin(nPts);
 const params = { kVp: 81, mA: 50, pwMs: 4, fps: 15, cine: true, fieldFrac: 0.7 };
-for (let s = 0; s < 300; s++) sim.accumulate(1, params, geom, { n: nPts, pos: skinPos, nor: skinNor }, TY, [
-  { c: torsoC, r: torsoR }, { c: headC, r: headR }
-]);
+for (let s = 0; s < 300; s++) sim.accumulate(1, params, geom, { n: nPts, pos: skinPos, nor: skinNor }, TY, ellPrev);
 
 const det = srcW.clone().addScaledVector(bd, SID);
 const half = geom.fieldAtDet / 2;
@@ -239,12 +244,8 @@ for (const w of [u, vv]) {
 
 const field = new DoseField(ISO);
 for (let s = 0; s < 1800; s++) {
-  field.accumulate(1, params, geom, [
-    { c: torsoC, r: torsoR }, { c: headC, r: headR }
-  ]);
-  if (s % 10 === 9) field.accumulateScatter(10, params, geom, [
-    { c: torsoC, r: torsoR }, { c: headC, r: headR }
-  ]);
+  field.accumulate(1, params, geom, ellPrev);
+  if (s % 10 === 9) field.accumulateScatter(10, params, geom, ellPrev);
 }
 {
   const n = field.n, h = field.size / 2, cell = field.size / n;

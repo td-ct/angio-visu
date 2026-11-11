@@ -68,8 +68,11 @@ const contrast = { phase: 'idle', t: 0 };
 const ellipsoidsWorld = world.ellipsoidsLocal.map(e => ({ c: e.c.clone(), r: e.r.clone() }));
 
 function ellipsoidsAt(tableY) {
+  const o = world.tableOff;
   for (let i = 0; i < ellipsoidsWorld.length; i++) {
-    ellipsoidsWorld[i].c.y = world.ellipsoidsLocal[i].c.y + tableY;
+    const l = world.ellipsoidsLocal[i];
+    ellipsoidsWorld[i].c.set(l.c.x + o.x, l.c.y + tableY, l.c.z + o.z);
+    ellipsoidsWorld[i].mu = l.mu;
   }
   return ellipsoidsWorld;
 }
@@ -99,6 +102,13 @@ let lastMap = 0;
 let lastChart = 0;
 let planeDirty = true;
 let scatterAcc = 0;
+let collimating = false;
+let collTimer = 0;
+document.getElementById('coll').addEventListener('input', () => {
+  collimating = true;
+  clearTimeout(collTimer);
+  collTimer = setTimeout(() => { collimating = false; }, 1200);
+});
 const clock = new THREE.Clock();
 
 function frame() {
@@ -127,9 +137,11 @@ function frame() {
   const geom = computeBeamGeometry(srcV, dirV, isoVec, SID, ell, state.coll);
 
   const running = state.fluoro || state.cine;
-  world.setBeam(geom.fieldAtDet, running);
+  const beamOn = running || collimating;
+  world.setBeam(geom.fieldAtDet, beamOn);
+  world.setCollimating(collimating);
   world.screen.material.opacity = running ? 0.22 + 0.1 * Math.sin(t * 26) : 0.1;
-  world.beamLight.intensity = running ? 5 + 2 * Math.sin(t * 26) : 0;
+  world.beamLight.intensity = beamOn ? (collimating ? 9 : 5 + 2 * Math.sin(t * 26)) : 0;
 
   if (running) {
     const params = doseParams();
@@ -216,7 +228,10 @@ function frame() {
 }
 
 initUI({
-  onChange() {},
+  onChange() {
+    world.setLayers({ organs: state.showOrgans, bone: state.showBone, brain: state.showBrain });
+    world.setTableOffset(state.tableX / 100, state.tableZ / 100);
+  },
   onContrast() {
     if (contrast.phase === 'idle' || contrast.phase === 'fade') {
       contrast.phase = 'fill';
@@ -275,8 +290,45 @@ window.addEventListener('pointerup', () => {
     controls.enabled = true;
     renderer.domElement.style.cursor = '';
   }
+  if (draggingTable) {
+    draggingTable = false;
+    controls.enabled = true;
+    renderer.domElement.style.cursor = '';
+  }
 });
 
+let draggingTable = false;
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (draggingPlane) return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  if (raycaster.intersectObject(world.tableMesh, false).length) {
+    draggingTable = true;
+    controls.enabled = false;
+    renderer.domElement.style.cursor = 'move';
+  }
+});
+window.addEventListener('pointermove', e => {
+  if (!draggingTable) return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -world.tableY);
+  const hit = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(tablePlane, hit)) {
+    const tx = THREE.MathUtils.clamp(hit.x, -0.3, 0.3);
+    const tz = THREE.MathUtils.clamp(hit.z, -0.8, 0.8);
+    state.tableX = Math.round(tx * 100);
+    state.tableZ = Math.round(tz * 100);
+    document.getElementById('tableX').value = String(state.tableX);
+    document.getElementById('tableZ').value = String(state.tableZ);
+    document.getElementById('tableXVal').textContent = state.tableX + ' cm';
+    document.getElementById('tableZVal').textContent = state.tableZ + ' cm';
+    world.setTableOffset(tx, tz);
+  }
+});
+
+world.setLayers({ organs: state.showOrgans, bone: state.showBone, brain: state.showBrain });
+world.setTableOffset(0, 0);
 refreshSkinColors();
 world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
 world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);

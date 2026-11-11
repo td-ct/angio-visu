@@ -76,7 +76,7 @@ export function pathThrough(o, dir, dist, ellipsoidsWorld) {
     if (h) {
       const a = Math.max(0, h[0]);
       const b = Math.min(dist, h[1]);
-      if (b > a) total += b - a;
+      if (b > a) total += (b - a) * (e.mu ?? 1);
     }
   }
   return total;
@@ -173,7 +173,7 @@ export function chordThrough(o, d, ellipsoids) {
   for (const e of ellipsoids) {
     const hit = rayEllipsoid(o, d, e.c, e.r);
     if (hit && hit[1] > 0) {
-      total += Math.max(0, hit[1] - Math.max(0, hit[0]));
+      total += Math.max(0, hit[1] - Math.max(0, hit[0])) * (e.mu ?? 1);
     }
   }
   return total;
