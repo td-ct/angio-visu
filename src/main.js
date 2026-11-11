@@ -36,8 +36,26 @@ controls.minDistance = 0.4;
 const world = buildWorld(scene);
 const sim = new DoseSim();
 sim.attachSkin(world.nPts);
-const field = new DoseField(ISO);
+let isoVec = ISO.clone();
+const field = new DoseField(isoVec);
+world.setIso(isoVec);
 world.setPlane(state.planeAxis, state.planeOff / 100);
+let lastMode = state.mode;
+
+function applyMode() {
+  isoVec = state.mode === 'neuro' ? new THREE.Vector3(0.02, 1.0, -0.72) : ISO.clone();
+  world.setIso(isoVec);
+  field.center.copy(isoVec);
+  world.setAnatomyMode(state.mode);
+  controls.target.copy(isoVec);
+  sim.reset();
+  field.reset();
+  chart.reset();
+  refreshSkinColors();
+  world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);
+  world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
+  drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
+}
 
 const chart = new Chart(document.getElementById('chart'));
 const skinCanvas = document.getElementById('skinmap');
