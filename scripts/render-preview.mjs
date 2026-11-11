@@ -8,7 +8,8 @@ import {
 } from '../src/world.js';
 import { DoseSim, computeBeamGeometry, colormap } from '../src/dose.js';
 
-const W = 1280, H = 800;
+const W = Number(process.env.PREVIEW_W || 1280);
+const H = Number(process.env.PREVIEW_H || 800);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 mkdirSync(join(root, 'docs'), { recursive: true });
 
@@ -289,6 +290,6 @@ const png = Buffer.concat([
   chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
   chunk('IEND', Buffer.alloc(0))
 ]);
-const outPath = join(root, 'docs', 'preview.png');
+const outPath = process.env.PREVIEW_OUT || join(root, 'docs', 'preview.png');
 writeFileSync(outPath, png);
 console.log(`preview written: ${outPath} (${(png.length / 1024).toFixed(0)} kB), dose points drawn: ${drawn}, Ka,r=${sim.kaR_mGy.toFixed(0)} mGy, peak=${(sim.peak_mGy / 1000).toFixed(2)} Gy, DAP=${sim.dap_Gycm2.toFixed(1)} Gy*cm2`);
