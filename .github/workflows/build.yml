@@ -17,8 +17,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:single
+      - run: node scripts/render-preview.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: angio-visu-single-html
           path: dist/angio-visu.html
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: angio-visu-preview-png
+          path: docs/preview.png
           retention-days: 30

@@ -5,9 +5,12 @@ Interaktive **3D-Visualisierung einer Angio-Intervention** (Koronarintervention)
 
 Educational / Demo — keine medizinische Anwendung, keine klinischen Dosiswerte.
 
-![Vorschau](docs/preview.png)
+![Vorschau](assets/preview.png)
 
-`docs/preview.png` wird ohne Browser aus der echten Szenengeometrie + Dosis-Simulation
+Vorschau direkt neben `index.html` im Repo-Root: **[preview.png](preview.png)** (gleiche Datei
+auch in `assets/`, plus `assets/preview-ascii.txt` als Text-Version).
+
+`assets/preview.png` wird ohne Browser aus der echten Szenengeometrie + Dosis-Simulation
 software-gerendert: `npm run render:preview` (RAO 25°, kranial −10°, Katheter 85 %,
 Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2 Gy).
 
@@ -38,6 +41,12 @@ npm run build        # Production-Build nach dist/
 npm run build:single # eine einzige, self-contained HTML-Datei: dist/angio-visu.html
 npm run preview      # Build lokal ausliefern
 ```
+
+**Ohne npm/Server direkt im Browser:** die fertige Single-File-App liegt im Repo-Root als
+**[angio-visu.html](angio-visu.html)** — Doppelklick genügt (`file://` funktioniert, weil
+alles inline ist). Achtung: die Quell-`index.html` allein ist *nicht* per Doppelklick
+lauffähig (ES-Modul `/src/main.js` wird über `file://` blockiert) — dafür `angio-visu.html`
+oder `npm run dev` verwenden.
 
 ## Single-File (eine HTML-Datei)
 
