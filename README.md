@@ -33,6 +33,15 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
   - Monitorgrößen: Ka,r (kumulativ, IRP 15 cm vom Isozentrum), DAP (Gy·cm²),
     Peak Skin Dose mit Schwellen (2 Gy / 5 Gy), Dosisrate, SSD, Feldgröße
   - Dosisverlauf als Zeitplot (Dosisrate + kumulatives Ka,r)
+- **Dosisfeld im Raum (CT-Koordinatensystem)**: akkumuliertes 3D-Voxelraster (44³ um das
+  Isozentrum). Daraus zwei Ansichten:
+  - **verschiebbare weiße Schnittebene** (Frontal x / Sagittal z / Axial y), Standardpositionen
+    exakt durch Patientenachse bzw. Isozentrum („Frontal Mitte", „Sagittal Iso", „Axial Iso"),
+    Verschiebung per Slider immer relativ zum Isozentrum im CT-System — unabhängig von Kamera
+    und C-Bogen. Farbskala auf der Ebene: **Grün → Gelb → Rot → Violett → fast Schwarz**
+  - **Dosiswolke** als Punktewolke im Raum; Transparenz nimmt mit der Dosis ab
+    (niedrige Dosis transparent, hohe Dosis deckend violett-schwarz)
+  - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (mGy/s)**
 
 ## Start
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
-import { DoseSim, computeBeamGeometry, colormap, SKIN_SCALE_GY } from './dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 
 const container = document.getElementById('scene');
@@ -36,7 +36,8 @@ controls.minDistance = 0.4;
 const world = buildWorld(scene);
 const sim = new DoseSim();
 sim.attachSkin(world.nPts);
-sim.attachSlice(world.slice.n);
+const field = new DoseField(ISO);
+world.setPlane(state.planeAxis, state.planeOff / 100);
 
 const chart = new Chart(document.getElementById('chart'));
 const skinCanvas = document.getElementById('skinmap');
@@ -74,26 +75,11 @@ function refreshSkinColors() {
   colors.needsUpdate = true;
 }
 
-function updateSliceTexture() {
-  const { ctx, canvas, n } = world.slice;
-  const img = ctx.createImageData(n, n);
-  const c = [0, 0, 0];
-  for (let i = 0; i < n * n; i++) {
-    colormap(sim.sliceDoses[i] / 1000 / SKIN_SCALE_GY, c);
-    const o = i * 4;
-    img.data[o] = c[0] * 255;
-    img.data[o + 1] = c[1] * 255;
-    img.data[o + 2] = c[2] * 255;
-    img.data[o + 3] = 235;
-  }
-  ctx.putImageData(img, 0, 0);
-  world.slice.tex.needsUpdate = true;
-}
-
 let lastUi = 0;
-let lastSlice = 0;
+let lastField = 0;
 let lastMap = 0;
 let lastChart = 0;
+let planeDirty = true;
 const clock = new THREE.Clock();
 
 function frame() {
@@ -122,9 +108,11 @@ function frame() {
   world.beamLight.intensity = running ? 5 + 2 * Math.sin(t * 26) : 0;
 
   if (running) {
-    sim.setSliceMatrix(world.gantry.matrixWorld);
-    sim.accumulate(dt, doseParams(), geom, { n: world.nPts, pos: world.skinPos, nor: world.skinNor }, tableY, ell);
+    const params = doseParams();
+    sim.accumulate(dt, params, geom, { n: world.nPts, pos: world.skinPos, nor: world.skinNor }, tableY, ell);
+    field.accumulate(dt, params, geom, ell);
     refreshSkinColors();
+    planeDirty = true;
   } else {
     sim.rate_mGy_s = 0;
   }
@@ -150,9 +138,24 @@ function frame() {
   const hs = 1 + 0.035 * Math.sin(t * 7.5);
   world.heart.scale.set(hs, 0.9 * (2 - hs), 0.95);
 
-  if (t - lastSlice > 0.15) {
-    lastSlice = t;
-    if (running || sim.sliceDoses.some(v => v > 0)) updateSliceTexture();
+  if (t - lastField > 0.15) {
+    lastField = t;
+    if (state.planeAxis !== world.planeAxis || state.planeOff / 100 !== world.planeOffset) {
+      world.setPlane(state.planeAxis, state.planeOff / 100);
+      planeDirty = true;
+    }
+    world.setPlaneVisible(state.fieldMode !== 'cloud');
+    world.setCloudVisible(state.fieldMode !== 'plane');
+    if (state.fieldMode !== 'cloud') {
+      const opts = state.fieldRate
+        ? { rate: true, params: doseParams(), geom, ell }
+        : {};
+      const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, opts);
+      world.drawPlane(s.data, world.PLANE_M);
+    }
+    if (state.fieldMode !== 'plane') {
+      world.updateCloud(field, 20);
+    }
   }
   if (t - lastMap > 0.2) {
     lastMap = t;
@@ -160,7 +163,7 @@ function frame() {
   }
   if (t - lastUi > 0.1) {
     lastUi = t;
-    updateReadouts(sim, geom);
+    updateReadouts(sim, geom, field.max);
   }
   if (t - lastChart > 0.25) {
     lastChart = t;
@@ -183,9 +186,11 @@ initUI({
   },
   onReset() {
     sim.reset();
+    field.reset();
     chart.reset();
     refreshSkinColors();
-    updateSliceTexture();
+    world.updateCloud(field, 20);
+    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M);
     drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
   }
 });
@@ -197,5 +202,7 @@ window.addEventListener('resize', () => {
 });
 
 refreshSkinColors();
+world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M);
+world.updateCloud(field, 20);
 drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
 frame();

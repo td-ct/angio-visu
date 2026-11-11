@@ -140,6 +140,39 @@
     <div class="btnrow">
       <button id="btnContrast">Kontrast injizieren</button>
     </div>
+
+    <h2>Dosisfeld im Raum (CT-Koord.)</h2>
+    <div class="row">
+      <label for="fieldMode">Anzeige</label>
+      <select id="fieldMode">
+        <option value="plane">Schnittebene</option>
+        <option value="cloud">Dosiswolke</option>
+        <option value="both" selected>Beides</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="planeAxis">Schnittebene</label>
+      <select id="planeAxis">
+        <option value="x">Frontal (x)</option>
+        <option value="z" selected>Sagittal (z)</option>
+        <option value="y">Axial (y)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="planeOff">Position (CT)</label>
+      <input id="planeOff" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeOffVal">0 cm</span>
+    </div>
+    <div class="btnrow">
+      <button id="btnFrontal">Frontal Mitte</button>
+      <button id="btnSag">Sagittal Iso</button>
+      <button id="btnAxial">Axial Iso</button>
+    </div>
+    <div class="row">
+      <label for="fieldRate">Dosisrate statt Dosis</label>
+      <input id="fieldRate" type="checkbox" />
+      <span class="val"></span>
+    </div>
     <div class="btnrow">
       <button id="btnReset" class="danger">Dosis zurücksetzen</button>
     </div>
@@ -152,6 +185,7 @@
     <div class="kv"><span class="k">Ka,r (kumulativ)</span><span class="v" id="rKar">0 mGy</span></div>
     <div class="kv"><span class="k">DAP</span><span class="v" id="rDap">0,00 Gy·cm²</span></div>
     <div class="kv"><span class="k">Hautdosis max</span><span class="v" id="skinmax">0 mGy</span></div>
+    <div class="kv"><span class="k">Dosisfeld max (Raum)</span><span class="v" id="rFieldMax">0 mGy</span></div>
     <div class="kv"><span class="k">Dosisrate (IRP)</span><span class="v" id="rRate">0 mGy/s</span></div>
     <div class="kv"><span class="k">SSD (Hautabstand)</span><span class="v" id="rSsd">—</span></div>
     <div class="kv"><span class="k">Feldgröße (Detektor)</span><span class="v" id="rField">—</span></div>
@@ -169,6 +203,7 @@
     <canvas id="skinmap" width="216" height="170"></canvas>
     <div id="colorbar"></div>
     <div class="legend"><span>0 Gy</span><span>2 Gy</span><span>5 Gy</span></div>
+    <div class="legend" style="margin-top:2px"><span style="color:#4ade80">■</span><span style="color:#fae526">■</span><span style="color:#f24a1a">■</span><span style="color:#991ae5">■</span><span style="color:#140026">■</span><span style="font-size:9px">Ebene/Wolke: Grün→Gelb→Rot→Violett→Schwarz</span></div>
   </div>
 
   <div id="hint">Linke Maustaste: drehen · Rechtsklick: verschieben · Mausrad: zoom</div>

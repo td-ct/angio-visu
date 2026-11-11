@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ISO, SID, TABLE_BASE, AORTA_POINTS, OSTIUM, LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS, sampleEllipsoid
 } from '../src/world.js';
-import { DoseSim, computeBeamGeometry, colormap } from '../src/dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, colormapRoom, ROOM_SCALE_GY, FIELD_SIZE } from '../src/dose.js';
 
 const W = Number(process.env.PREVIEW_W || 1280);
 const H = Number(process.env.PREVIEW_H || 800);
@@ -235,6 +235,31 @@ for (const w of [u, vv]) {
     det.clone().addScaledVector(w, -half), beamCol, 0.13, false);
   tri(srcW.clone().addScaledVector(w, 0.012), det.clone().addScaledVector(w, -half),
     det.clone().addScaledVector(w, half), beamCol, 0.13, false);
+}
+
+const field = new DoseField(ISO);
+for (let s = 0; s < 1800; s++) field.accumulate(1, params, geom, [
+  { c: torsoC, r: torsoR }, { c: headC, r: headR }
+]);
+const PM = 40;
+const samp = field.sample('x', 0, PM);
+const fh = FIELD_SIZE / 2, fcell = FIELD_SIZE / PM;
+const planeCol = [0.96, 0.97, 0.99];
+for (let b = 0; b < PM; b++) {
+  for (let a = 0; a < PM; a++) {
+    const y0 = ISO.y - fh + b * fcell, y1 = y0 + fcell;
+    const z0 = ISO.z - fh + a * fcell, z1 = z0 + fcell;
+    tri(new THREE.Vector3(0, y0, z0), new THREE.Vector3(0, y1, z0), new THREE.Vector3(0, y1, z1), planeCol, 0.16, false);
+    tri(new THREE.Vector3(0, y0, z0), new THREE.Vector3(0, y1, z1), new THREE.Vector3(0, y0, z1), planeCol, 0.16, false);
+    const v = samp.data[b * PM + a];
+    if (v <= 20) continue;
+    const t = v / 1000 / ROOM_SCALE_GY;
+    const cc = [0, 0, 0];
+    colormapRoom(t, cc);
+    const alpha = 0.3 + 0.65 * Math.min(1, t);
+    tri(new THREE.Vector3(0, y0, z0), new THREE.Vector3(0, y1, z0), new THREE.Vector3(0, y1, z1), cc, alpha, false);
+    tri(new THREE.Vector3(0, y0, z0), new THREE.Vector3(0, y1, z1), new THREE.Vector3(0, y0, z1), cc, alpha, false);
+  }
 }
 
 const c = [0, 0, 0];

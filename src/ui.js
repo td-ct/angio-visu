@@ -11,7 +11,11 @@ export const state = {
   cran: 0,
   coll: 0.7,
   table: 0,
-  cath: 0
+  cath: 0,
+  fieldMode: 'both',
+  planeAxis: 'z',
+  planeOff: 0,
+  fieldRate: false
 };
 
 const $ = id => document.getElementById(id);
@@ -46,6 +50,44 @@ export function initUI(actions) {
   bind('coll', 'coll', v => Number(v) / 100, '%');
   bind('table', 'table', Number, ' cm');
   bind('cath', 'cath', v => Number(v) / 100, '%');
+  bind('planeOff', 'planeOff', Number, ' cm');
+
+  $('fieldMode').addEventListener('change', e => {
+    state.fieldMode = e.target.value;
+    actions.onChange();
+  });
+  $('planeAxis').addEventListener('change', e => {
+    state.planeAxis = e.target.value;
+    actions.onChange();
+  });
+  $('fieldRate').addEventListener('change', e => {
+    state.fieldRate = e.target.checked;
+    actions.onChange();
+  });
+  $('btnFrontal').addEventListener('click', () => {
+    state.planeAxis = 'x';
+    state.planeOff = 0;
+    $('planeAxis').value = 'x';
+    $('planeOff').value = '0';
+    $('planeOffVal').textContent = '0 cm';
+    actions.onChange();
+  });
+  $('btnSag').addEventListener('click', () => {
+    state.planeAxis = 'z';
+    state.planeOff = 0;
+    $('planeAxis').value = 'z';
+    $('planeOff').value = '0';
+    $('planeOffVal').textContent = '0 cm';
+    actions.onChange();
+  });
+  $('btnAxial').addEventListener('click', () => {
+    state.planeAxis = 'y';
+    state.planeOff = 0;
+    $('planeAxis').value = 'y';
+    $('planeOff').value = '0';
+    $('planeOffVal').textContent = '0 cm';
+    actions.onChange();
+  });
 
   $('fps').addEventListener('change', e => {
     state.fps = Number(e.target.value);
@@ -84,7 +126,7 @@ export function doseParams() {
   };
 }
 
-export function updateReadouts(sim, geom) {
+export function updateReadouts(sim, geom, fieldMaxMGy = 0) {
   $('rTime').textContent = fmtTime(sim.time_s);
   $('rPulses').textContent = Math.round(sim.pulses).toLocaleString('de-DE');
   $('rKar').textContent = fmtGy(sim.kaR_mGy / 1000);
@@ -94,6 +136,7 @@ export function updateReadouts(sim, geom) {
   skinEl.textContent = fmtGy(peakGy);
   skinEl.className = 'v' + (peakGy >= 5 ? ' danger' : peakGy >= 2 ? ' warn' : '');
   $('rRate').textContent = sim.rate_mGy_s.toFixed(1) + ' mGy/s';
+  $('rFieldMax').textContent = fmtGy(fieldMaxMGy / 1000);
   $('rSsd').textContent = geom ? (geom.ssd * 100).toFixed(0) + ' cm' : '—';
   $('rField').textContent = geom ? (geom.fieldAtDet * 100).toFixed(0) + ' cm' : '—';
   const p = doseParams();

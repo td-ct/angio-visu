@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FIELD_SIZE, FIELD_N, colormapRoom, ROOM_SCALE_GY } from './dose.js';
 
 export const ISO = new THREE.Vector3(0, 1.0, -0.35);
 export const SID = 1.0;
@@ -283,21 +284,75 @@ export function buildWorld(scene) {
   beamGroup.add(...beamOuter, ...beamInner);
   gantry.add(beamGroup);
 
-  const SLICE_N = 112;
-  const SLICE_SIZE = 0.5;
-  const sliceCanvas = document.createElement('canvas');
-  sliceCanvas.width = SLICE_N;
-  sliceCanvas.height = SLICE_N;
-  const sliceCtx = sliceCanvas.getContext('2d');
-  const sliceTex = new THREE.CanvasTexture(sliceCanvas);
-  sliceTex.colorSpace = THREE.SRGBColorSpace;
-  const sliceMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(SLICE_SIZE, SLICE_SIZE),
-    new THREE.MeshBasicMaterial({ map: sliceTex, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
+  const PLANE_M = 128;
+  const planeCanvas = document.createElement('canvas');
+  planeCanvas.width = PLANE_M;
+  planeCanvas.height = PLANE_M;
+  const planeCtx = planeCanvas.getContext('2d');
+  const planeTex = new THREE.CanvasTexture(planeCanvas);
+  planeTex.colorSpace = THREE.SRGBColorSpace;
+  const planeGeo = new THREE.PlaneGeometry(FIELD_SIZE, FIELD_SIZE);
+  const planeMesh = new THREE.Mesh(
+    planeGeo,
+    new THREE.MeshBasicMaterial({ map: planeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false })
   );
-  sliceMesh.rotation.x = Math.PI / 2;
-  sliceMesh.renderOrder = 6;
-  gantry.add(sliceMesh);
+  planeMesh.renderOrder = 6;
+  planeMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(planeGeo), new THREE.LineBasicMaterial({ color: 0x64748b })));
+  scene.add(planeMesh);
+
+  const cn = FIELD_N;
+  const cloudGeo = new THREE.BufferGeometry();
+  const cpos = new Float32Array(cn ** 3 * 3);
+  const ccol = new Float32Array(cn ** 3 * 3);
+  const calpha = new Float32Array(cn ** 3);
+  {
+    const h = FIELD_SIZE / 2, cell = FIELD_SIZE / cn;
+    let p = 0;
+    for (let k = 0; k < cn; k++) {
+      for (let j = 0; j < cn; j++) {
+        for (let i = 0; i < cn; i++) {
+          cpos[p * 3] = ISO.x - h + (i + 0.5) * cell;
+          cpos[p * 3 + 1] = ISO.y - h + (j + 0.5) * cell;
+          cpos[p * 3 + 2] = ISO.z - h + (k + 0.5) * cell;
+          p++;
+        }
+      }
+    }
+  }
+  cloudGeo.setAttribute('position', new THREE.BufferAttribute(cpos, 3));
+  cloudGeo.setAttribute('aColor', new THREE.BufferAttribute(ccol, 3));
+  cloudGeo.setAttribute('aAlpha', new THREE.BufferAttribute(calpha, 1));
+  const cloudMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    vertexShader: `
+      attribute vec3 aColor;
+      attribute float aAlpha;
+      varying vec3 vC;
+      varying float vA;
+      void main() {
+        vC = aColor;
+        vA = aAlpha;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = ${(FIELD_SIZE / cn * 1.7).toFixed(4)} * (280.0 / max(1.0, -mv.z));
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vC;
+      varying float vA;
+      void main() {
+        float m = smoothstep(0.5, 0.3, length(gl_PointCoord - 0.5));
+        float a = vA * m;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(vC, a);
+      }
+    `
+  });
+  const cloud = new THREE.Points(cloudGeo, cloudMat);
+  cloud.renderOrder = 7;
+  cloud.frustumCulled = false;
+  scene.add(cloud);
 
   let tableY = TABLE_BASE;
   const world = {
@@ -310,7 +365,68 @@ export function buildWorld(scene) {
     ],
     aortaCurve, guideCurve, contrastCurve,
     catheterMesh, wireMesh, contrastMesh,
-    slice: { canvas: sliceCanvas, ctx: sliceCtx, tex: sliceTex, n: SLICE_N, size: SLICE_SIZE },
+    planeMesh, cloud, PLANE_M,
+    planeAxes: {
+      x: { n: [1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
+      y: { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, 1] },
+      z: { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] }
+    },
+    planeAxis: 'z',
+    planeOffset: 0,
+    setPlane(axis, offset) {
+      const A = this.planeAxes[axis];
+      const n = new THREE.Vector3(...A.n);
+      const u = new THREE.Vector3(...A.u);
+      const v = new THREE.Vector3(...A.v);
+      planeMesh.position.copy(ISO).addScaledVector(n, offset);
+      planeMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
+      this.planeAxis = axis;
+      this.planeOffset = offset;
+    },
+    setPlaneVisible(b) {
+      planeMesh.visible = b;
+    },
+    drawPlane(data, m) {
+      const img = planeCtx.createImageData(m, m);
+      const c = [0, 0, 0];
+      for (let b = 0; b < m; b++) {
+        for (let a = 0; a < m; a++) {
+          const val = data[b * m + a];
+          const o = ((m - 1 - b) * m + a) * 4;
+          if (val <= 0.05) {
+            img.data[o] = 245; img.data[o + 1] = 248; img.data[o + 2] = 252; img.data[o + 3] = 140;
+          } else {
+            colormapRoom(val / 1000 / ROOM_SCALE_GY, c);
+            img.data[o] = c[0] * 255; img.data[o + 1] = c[1] * 255; img.data[o + 2] = c[2] * 255;
+            img.data[o + 3] = 245;
+          }
+        }
+      }
+      planeCtx.putImageData(img, 0, 0);
+      planeTex.needsUpdate = true;
+    },
+    setCloudVisible(b) {
+      cloud.visible = b;
+    },
+    updateCloud(field, thrMGy) {
+      const n = field.n;
+      const c = [0, 0, 0];
+      for (let id = 0; id < n ** 3; id++) {
+        const d = field.data[id];
+        if (d < thrMGy) {
+          calpha[id] = 0;
+          continue;
+        }
+        const t = d / 1000 / ROOM_SCALE_GY;
+        colormapRoom(t, c);
+        ccol[id * 3] = c[0];
+        ccol[id * 3 + 1] = c[1];
+        ccol[id * 3 + 2] = c[2];
+        calpha[id] = 0.12 + 0.88 * Math.min(1, t);
+      }
+      cloudGeo.attributes.aColor.needsUpdate = true;
+      cloudGeo.attributes.aAlpha.needsUpdate = true;
+    },
     tableY,
     setTableY(y) {
       tableY = y;
