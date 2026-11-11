@@ -427,6 +427,7 @@ export function buildWorld(scene) {
   cloud.renderOrder = 7;
   cloud.frustumCulled = false;
   scene.add(cloud);
+  buildCloudGeo(cn);
 
   let tableY = TABLE_BASE;
   const world = {
