@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
 import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, RATE_SCALE_USVH, DOSE_FLOOR_USV, scatterSources, scatterRateAt, cellDoseRate } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
+import { openPlaneSnapshot } from './snapshot.js';
 
 const container = document.getElementById('scene');
 const errbox = document.getElementById('errbox');
@@ -83,6 +84,8 @@ function currentTableY() {
 
 const srcV = new THREE.Vector3();
 const dirV = new THREE.Vector3();
+let lastGeom = null, lastParams = null, lastEll = null, lastSources = [];
+const ELL_NAMES = ['Weichteil (Wasser)', 'Weichteil (Wasser)', 'Schädelknochen', 'Tischplatte'];
 
 function refreshSkinColors() {
   const colors = world.skinPoints.geometry.attributes.color;
@@ -135,6 +138,10 @@ function frame() {
   world.getBeamDirWorld(dirV);
   const ell = ellipsoidsAt(tableY);
   const geom = computeBeamGeometry(srcV, dirV, isoVec, SID, ell, state.coll);
+  lastGeom = geom;
+  lastParams = doseParams();
+  lastEll = ell;
+  lastSources = scatterSources(geom, ell, lastParams);
 
   const running = state.fluoro || state.cine;
   const beamOn = running || collimating;
@@ -237,6 +244,30 @@ initUI({
       contrast.phase = 'fill';
       contrast.t = 0;
     }
+  },
+  onSnapshot() {
+    if (!lastGeom) return;
+    const isRate = state.fieldRate;
+    const scaleUSv = isRate ? RATE_SCALE_USVH : Math.max(field.max * 1000, DOSE_FLOOR_USV);
+    const labeledEll = lastEll.map((e, i) => ({ ...e, name: ELL_NAMES[i] || 'Weichteil (Wasser)' }));
+    openPlaneSnapshot({
+      field,
+      axis: state.planeAxis,
+      offset: state.planeOff / 100,
+      isRate,
+      scaleUSv,
+      cmap: state.cmap,
+      logScale: state.logScale,
+      source: lastGeom.source,
+      beamDir: lastGeom.beamDir,
+      sid: SID,
+      iso: isoVec,
+      labeledEll,
+      planeAxes: world.planeAxes,
+      params: lastParams,
+      geom: lastGeom,
+      sources: lastSources
+    });
   },
   onReset() {
     sim.reset();

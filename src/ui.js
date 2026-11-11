@@ -149,6 +149,7 @@ export function initUI(actions) {
     actions.onChange();
   });
   $('btnContrast').addEventListener('click', () => actions.onContrast());
+  $('btnSnapshot').addEventListener('click', () => actions.onSnapshot());
   $('btnReset').addEventListener('click', () => actions.onReset());
 }
 

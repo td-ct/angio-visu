@@ -73,6 +73,10 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
   - die Ebene lässt sich **per Klick + Maus-Ziehen entlang der gewählten Achse (Normalen)**
     verschieben (Position im CT-System relativ zum Isozentrum); Orientierung über
     Select (Frontal/Sagittal/Axial) oder Snap-Buttons
+  - **📷 Kamera-Button („Ebene als Bild, neuer Tab")**: rendert die Ebene als PNG in einem
+    neuen Tab — mit **Durchstoßungslinie des Nutzstrahls, gefärbt nach durchstoßenem Material**
+    (Tisch / Schädelknochen / Weichteil-Wasser), **im Bild eingebetteter Farbskala mit Einheit
+    (µSv bzw. µSv/h) und Beschriftung am unteren Rand** (Ebene, Offset, Modus, log/linear)
 - **Streu-Modell** (leichtgewichtige physikalische Approximation, kVp-abhängig):
   - kV-Schnellwahl (70/81/90/100/110 kV) + Slider 60–120 kVp
   - Streufaktor `SPR(kVp, Feld) = 0.08·(A/100cm²)^0.35·(kVp/80)^1.5` und Rückstreufaktor
