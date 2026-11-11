@@ -16,7 +16,7 @@ class PartialCurve extends THREE.Curve {
   }
 }
 
-function sampleEllipsoid(center, radii, n) {
+export function sampleEllipsoid(center, radii, n) {
   const pos = new Float32Array(n * 3);
   const nor = new Float32Array(n * 3);
   const ga = Math.PI * (3 - Math.sqrt(5));
@@ -45,7 +45,7 @@ function sampleEllipsoid(center, radii, n) {
   return { pos, nor };
 }
 
-const AORTA_POINTS = [
+export const AORTA_POINTS = [
   [0.07, 0.045, 0.55],
   [0.06, 0.06, 0.32],
   [0.045, 0.075, 0.08],
@@ -55,11 +55,11 @@ const AORTA_POINTS = [
   [0.03, 0.15, -0.38],
   [0.035, 0.135, -0.43]
 ];
-const OSTIUM = [0.035, 0.135, -0.43];
-const LM_POINTS = [OSTIUM, [0.07, 0.125, -0.49], [0.095, 0.105, -0.55]];
-const LAD_POINTS = [[0.095, 0.105, -0.55], [0.1, 0.085, -0.62], [0.095, 0.07, -0.7]];
-const LCX_POINTS = [[0.07, 0.125, -0.49], [0.02, 0.115, -0.55], [-0.03, 0.1, -0.6], [-0.06, 0.095, -0.66]];
-const RCA_POINTS = [OSTIUM, [-0.005, 0.125, -0.475], [-0.045, 0.11, -0.53], [-0.055, 0.095, -0.6], [-0.05, 0.085, -0.67]];
+export const OSTIUM = [0.035, 0.135, -0.43];
+export const LM_POINTS = [OSTIUM, [0.07, 0.125, -0.49], [0.095, 0.105, -0.55]];
+export const LAD_POINTS = [[0.095, 0.105, -0.55], [0.1, 0.085, -0.62], [0.095, 0.07, -0.7]];
+export const LCX_POINTS = [[0.07, 0.125, -0.49], [0.02, 0.115, -0.55], [-0.03, 0.1, -0.6], [-0.06, 0.095, -0.66]];
+export const RCA_POINTS = [OSTIUM, [-0.005, 0.125, -0.475], [-0.045, 0.11, -0.53], [-0.055, 0.095, -0.6], [-0.05, 0.085, -0.67]];
 
 function toV3(list) {
   return list.map(p => new THREE.Vector3(p[0], p[1], p[2]));

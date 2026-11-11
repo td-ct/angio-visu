@@ -5,6 +5,12 @@ Interaktive **3D-Visualisierung einer Angio-Intervention** (Koronarintervention)
 
 Educational / Demo — keine medizinische Anwendung, keine klinischen Dosiswerte.
 
+![Vorschau](docs/preview.png)
+
+`docs/preview.png` wird ohne Browser aus der echten Szenengeometrie + Dosis-Simulation
+software-gerendert: `npm run render:preview` (RAO 25°, kranial −10°, Katheter 85 %,
+Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2 Gy).
+
 ## Features
 
 - 3D-Szene: Patient auf Kathetertisch, Aorta + Koronargefäße (LM/LAD, LCX, RCA), Herz,
