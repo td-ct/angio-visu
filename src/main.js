@@ -219,7 +219,7 @@ function frame() {
     sim.accumulate(dt, params, geom, { n: world.nPts, pos: world.skinPos, nor: world.skinNor }, tableY, ell, lookup);
     field.accumulate(dt, params, geom, ell);
     scatterAcc += dt;
-    if (scatterAcc >= 0.25) {
+    if (scatterAcc >= 0.3) {
       field.accumulateScatter(scatterAcc, params, geom);
       scatterAcc = 0;
     }

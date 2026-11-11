@@ -88,15 +88,18 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
   - **Materialraster** über den ganzen Raum (4 m um das Isozentrum, Zellgröße wählbar **8/5/4 cm**):
     Luft / Wasser (Patient: Torso, Kopf, Gliedmaßen) / Knochen (Schädelkalotte, µ×1,9) /
     wasseräquivalente Tischplatte / Metall (Röhrengehäuse, Detektor, C-Bogen, Sockel, µ×8)
-  - **Streuquellen**: der Nutzstrahl wird auf 7 parallelen Strahlen durch das Feld gemarcht; jedes
-    Voxel aus massivem Material, das der Strahl kreuzt, wird Quelle mit Leistung
-    `Primär(t) · SPR · Feldfläche · Zelle` (Metall ×2,5) — also Patientenvolumen, Tisch,
-    Röhrengehäuse und Detektor
+  - **Streuquellen**: der Nutzstrahl wird als **Fan** ( divergierende Strahlen von der Quelle durch
+    das gesamte Feld am Detektor, Strahlabstand ~ eine Zelle) entlang des ganzen Weges durch das
+    Volumen gemarcht; jedes massive Voxel, das ein Strahl kreuzt, wird Quelle mit Leistung
+    `Primär(t) · SPR · Feldfläche · Zelle` — also Patientenvolumen (volle sichtbare Ausdehnung),
+    Tisch, Röhrengehäuse und Detektor. **Oberflächen-Voxel** (mit Luft-Nachbar = Austrittsfläche)
+    werden ×1,5 verstärkt, Metall ×2,5
   - **Transport**: von jeder Quelle Fibonacci-Strahlen (96/128 Richtungen) bis 3 m; aufsummiert wird
     `Leistung · exp(−µ_s · Weg) / (4πd²)` mit µ_s = µ_Wasser(0,45·kVp) × Materialskalierung entlang
     des Wegs (in Luft reines 1/d², in Metall stark abgeschattet → Schatten hinter Detektor/C-Bogen,
     Abschwächung durch Patient/Schädel auf dem Streuweg); Ablage auf einem 2× gröberen
-    Streu-Raster + 3 Glättungspässe (diffuse Wolke ohne Löcher)
+    Streu-Raster + 3 Glättungspässe + Lückenfüllung (diffuse Wolke ohne Löcher/Hotspot-Linie
+    entlang des Nutzstrahls; Nahfeld via dMin abgeweicht)
   - **Kalibrierung**: Normierung auf **~5 mSv/h bei 1 m lateral** (81 kVp, 20 mA, 15 fps, 30-cm-Feld),
     linear skaliert mit `Y(kVp)·mAs·fps` → ~1/d² mit Abstand, bei 2 m einige 100 µSv/h
   - Dosisfeld deckt den ganzen Raum ab; Primär (im Strahlkegel) und Streuung akkumulieren getrennt

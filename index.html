@@ -195,8 +195,16 @@
       </select>
     </div>
     <div class="row">
-      <label for="planeAxis">Schnittebene</label>
+      <label for="planeAxis">Richtung</label>
       <select id="planeAxis">
+        <option value="x">Frontal (x)</option>
+        <option value="z" selected>Sagittal (z)</option>
+        <option value="y">Axial (y)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="planeNormal">Schnittebene</label>
+      <select id="planeNormal">
         <option value="x">Frontal (x)</option>
         <option value="z" selected>Sagittal (z)</option>
         <option value="y">Axial (y)</option>
@@ -206,11 +214,6 @@
       <label for="planeOff">Position (CT)</label>
       <input id="planeOff" type="range" min="-60" max="60" step="1" value="0" />
       <span class="val" id="planeOffVal">0 cm</span>
-    </div>
-    <div class="btnrow">
-      <button id="btnFrontal">Frontal Mitte</button>
-      <button id="btnSag">Sagittal Iso</button>
-      <button id="btnAxial">Axial Iso</button>
     </div>
     <div class="btnrow">
       <button id="btnQDose" class="active">Dosis (µSv)</button>

@@ -44,7 +44,7 @@ export function openPlaneSnapshot(opts) {
     source, beamDir, sid, iso, labeledEll, planeAxes, params, geom, ell
   } = opts;
 
-  const W = 1000, H = 1000, BAR = 110;
+  const W = 1000, H = 1000, BAR = 152;
   const cv = document.createElement('canvas');
   cv.width = W;
   cv.height = H + BAR;
@@ -100,7 +100,7 @@ export function openPlaneSnapshot(opts) {
     const [x1, y1] = toPx(p1);
     if (x0 < 0 && x1 < 0 || x0 > W && x1 > W || y0 < 0 && y1 < 0 || y0 > H && y1 > H) continue;
     ctx.strokeStyle = MAT_COLORS[sgm.label] || '#111827';
-    ctx.lineWidth = 9;
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
@@ -116,12 +116,12 @@ export function openPlaneSnapshot(opts) {
   ctx.fillStyle = '#0f172a';
   ctx.textBaseline = 'alphabetic';
   ctx.font = '600 26px system-ui, sans-serif';
-  ctx.fillText(`Schnittebene ${axisName} · Offset ${(offset * 100).toFixed(0)} cm · ${modeName}${logScale ? ' (log)' : ''}`, 24, H + 38);
+  ctx.fillText(`Schnittebene ${axisName} · Offset ${(offset * 100).toFixed(0)} cm · ${modeName}${logScale ? ' (log)' : ''}`, 24, H + 36);
   ctx.font = '20px system-ui, sans-serif';
   ctx.fillStyle = '#334155';
-  ctx.fillText(`Durchstoßungslinie gefärbt nach Material:  ■ Tisch  ■ Schädelknochen  ■ Weichteil (Wasser)`, 24, H + 66);
+  ctx.fillText(`Durchstoßungslinie gefärbt nach Material:  ■ Tisch  ■ Schädelknochen  ■ Weichteil (Wasser)`, 24, H + 62);
 
-  const barX = 24, barY = H + 80, barW = W - 48, barH = 20;
+  const barX = 24, barY = H + 78, barW = W - 48, barH = 20;
   const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
   for (let i = 0; i <= 10; i++) {
     const col = [0, 0, 0];
@@ -136,10 +136,10 @@ export function openPlaneSnapshot(opts) {
   ctx.fillStyle = '#0f172a';
   ctx.font = '600 20px system-ui, sans-serif';
   const fmt = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(v < 10 ? 1 : 0);
-  ctx.fillText(fmt(scaleMin), barX, barY + barH + 24);
-  ctx.fillText(`${fmt(scaleMax)} ${unit}`, barX + barW, barY + barH + 24);
+  ctx.fillText(fmt(scaleMin), barX, barY + barH + 22);
+  ctx.fillText(`${fmt(scaleMax)} ${unit}`, barX + barW, barY + barH + 22);
   ctx.textAlign = 'center';
-  ctx.fillText(`Farbskala: ${modeName} in ${unit}${logScale ? ' · log10' : ''} · Skala ${fmt(scaleMin)}–${fmt(scaleMax)} ${unit}`, barX + barW / 2, barY - 8);
+  ctx.fillText(`Farbskala: ${modeName} in ${unit}${logScale ? ' · log10' : ''} · Skala ${fmt(scaleMin)}–${fmt(scaleMax)} ${unit}`, barX + barW / 2, H + 144);
   ctx.textAlign = 'left';
 
   cv.toBlob(blob => {

@@ -368,12 +368,31 @@ export class DoseField {
     if (ul < 1e-6) { ux = 1; uy = 0; uz = 0; } else { ux /= ul; uy /= ul; uz /= ul; }
     const vx = bd.y * uz - bd.z * uy, vy = bd.z * ux - bd.x * uz, vz = bd.x * uy - bd.y * ux;
 
+    const rMax = 0.85 * r1;
+    const nRaysWant = Math.max(7, Math.min(49, Math.round(Math.PI * rMax * rMax / (cell * cell))));
+    let nRings = 1;
+    while (1 + 3 * nRings * (nRings + 1) < nRaysWant) nRings++;
     const rays = [[0, 0]];
-    for (let a = 0; a < 6; a++) {
-      const th = (a / 6) * 2 * Math.PI + 0.7;
-      rays.push([Math.cos(th) * 0.7, Math.sin(th) * 0.7]);
+    for (let ring = 1; ring <= nRings; ring++) {
+      const rr = ring / nRings * 0.85, cnt = ring * 6;
+      for (let a = 0; a < cnt; a++) {
+        const th = (a / cnt) * 2 * Math.PI + ring * 0.7;
+        rays.push([Math.cos(th) * rr, Math.sin(th) * rr]);
+      }
     }
     const nRays = rays.length;
+
+    const nG = this.n;
+    const isSurface = id => {
+      const i = id % nG, rest = (id / nG) | 0, j = rest % nG, k = (rest / nG) | 0;
+      if (i > 0 && this.mat[id - 1] === MAT.AIR) return true;
+      if (i < nG - 1 && this.mat[id + 1] === MAT.AIR) return true;
+      if (j > 0 && this.mat[id - nG] === MAT.AIR) return true;
+      if (j < nG - 1 && this.mat[id + nG] === MAT.AIR) return true;
+      if (k > 0 && this.mat[id - nG * nG] === MAT.AIR) return true;
+      if (k < nG - 1 && this.mat[id + nG * nG] === MAT.AIR) return true;
+      return false;
+    };
 
     const sources = [];
     const step = cell * 0.5;
@@ -387,9 +406,9 @@ export class DoseField {
         const id = this.voxelIndex(px, py, pz);
         if (id < 0) continue;
         const m = this.mat[id];
-        if (m !== MAT.AIR && id !== lastId && sources.length < 240) {
+        if (m !== MAT.AIR && id !== lastId && sources.length < (n >= 80 ? 160 : 480)) {
           const prim = Y * mAs * (1 / t) ** 2 * Math.exp(-muW * depth) * fps;
-          const f = m === MAT.METAL ? 2.5 : 1;
+          const f = (m === MAT.METAL ? 2.5 : 1) * (isSurface(id) ? 1.5 : 1);
           sources.push({ x: px, y: py, z: pz, power: prim * spr * f * (Math.PI * R * R / nRays) * cell / 0.3 });
           lastId = id;
         }
@@ -400,9 +419,9 @@ export class DoseField {
     if (!sources.length) return;
 
     const CAL = 1.0;
-    const dirs = fibDirs(this.n >= 80 ? 128 : 96);
-    const maxRange = this.size * 0.75;
-    const dMin = 0.1;
+    const dirs = fibDirs(96);
+    const maxRange = this.size * 0.6;
+    const dMin = Math.max(0.15, this.cellC);
     const nc = this.nc, h = this.size / 2, cellC = this.cellC, c = this.center;
     const stepD = cell;
     const wStep = stepD / cellC;
@@ -465,6 +484,29 @@ export class DoseField {
         }
       }
       this.scatterRate.set(dst);
+    }
+    for (let pass = 0; pass < 6; pass++) {
+      const srcA = this.scatterRate, dst = this.scatterTmp;
+      let changed = false;
+      for (let k = 0; k < nc; k++) {
+        for (let j = 0; j < nc; j++) {
+          for (let i = 0; i < nc; i++) {
+            const id = (k * nc + j) * nc + i;
+            if (srcA[id] > 0) { dst[id] = srcA[id]; continue; }
+            let sum = 0, cnt = 0;
+            if (i > 0 && srcA[id - 1] > 0) { sum += srcA[id - 1]; cnt++; }
+            if (i < nc - 1 && srcA[id + 1] > 0) { sum += srcA[id + 1]; cnt++; }
+            if (j > 0 && srcA[id - nc] > 0) { sum += srcA[id - nc]; cnt++; }
+            if (j < nc - 1 && srcA[id + nc] > 0) { sum += srcA[id + nc]; cnt++; }
+            if (k > 0 && srcA[id - nc * nc] > 0) { sum += srcA[id - nc * nc]; cnt++; }
+            if (k < nc - 1 && srcA[id + nc * nc] > 0) { sum += srcA[id + nc * nc]; cnt++; }
+            dst[id] = cnt ? 0.92 * sum / cnt : 0;
+            if (dst[id] > 0) changed = true;
+          }
+        }
+      }
+      this.scatterRate.set(dst);
+      if (!changed) break;
     }
     const refDirs = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0]];
     for (const [dx, dy, dz] of refDirs) {

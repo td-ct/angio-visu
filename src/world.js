@@ -520,10 +520,10 @@ export function buildWorld(scene) {
         planeCtx.stroke();
       }
 
-      const stripH = Math.round(m * 0.085);
+      const stripH = Math.round(m * 0.115);
       planeCtx.fillStyle = 'rgba(255,255,255,0.9)';
       planeCtx.fillRect(0, m - stripH, m, stripH);
-      const bx = m * 0.05, bw = m * 0.9, by = m - stripH + Math.round(stripH * 0.22), bh = Math.round(stripH * 0.42);
+      const bx = m * 0.05, bw = m * 0.9, by = m - stripH + Math.round(stripH * 0.12), bh = Math.round(stripH * 0.38);
       const grad = planeCtx.createLinearGradient(bx, 0, bx + bw, 0);
       for (let i = 0; i <= 10; i++) {
         colormapNamed(o.cmap, i / 10, c);
@@ -535,12 +535,12 @@ export function buildWorld(scene) {
       planeCtx.lineWidth = 1;
       planeCtx.strokeRect(bx, by, bw, bh);
       planeCtx.fillStyle = '#0f172a';
-      planeCtx.font = `${Math.max(8, Math.round(m * 0.045))}px sans-serif`;
+      planeCtx.font = `${Math.max(9, Math.round(stripH * 0.34))}px sans-serif`;
       planeCtx.textBaseline = 'middle';
       const fmt = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v * 10) / 10);
-      planeCtx.fillText(fmt(o.scaleMin), bx, by + bh + stripH * 0.32);
+      planeCtx.fillText(fmt(o.scaleMin), bx, by + bh + stripH * 0.36);
       planeCtx.textAlign = 'right';
-      planeCtx.fillText(fmt(o.scaleMax) + ' ' + (o.unit || ''), bx + bw, by + bh + stripH * 0.32);
+      planeCtx.fillText(fmt(o.scaleMax) + ' ' + (o.unit || ''), bx + bw, by + bh + stripH * 0.36);
       planeCtx.textAlign = 'left';
 
       const barLen = pxPerM;

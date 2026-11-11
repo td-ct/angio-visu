@@ -77,10 +77,15 @@ export function initUI(actions) {
     state.fieldMode = e.target.value;
     actions.onChange();
   });
-  $('planeAxis').addEventListener('change', e => {
-    state.planeAxis = e.target.value;
+  const planeSel = $('planeAxis'), planeNormSel = $('planeNormal');
+  const setPlaneAxis = v => {
+    state.planeAxis = v;
+    planeSel.value = v;
+    planeNormSel.value = v;
     actions.onChange();
-  });
+  };
+  planeSel.addEventListener('change', e => setPlaneAxis(e.target.value));
+  planeNormSel.addEventListener('change', e => setPlaneAxis(e.target.value));
   const qDose = $('btnQDose'), qRate = $('btnQRate');
   const setQuantity = q => {
     state.fieldQuantity = q;
@@ -123,31 +128,6 @@ export function initUI(actions) {
     state.fieldRes = Number(e.target.value);
     actions.onChange();
   });
-  $('btnFrontal').addEventListener('click', () => {
-    state.planeAxis = 'x';
-    state.planeOff = 0;
-    $('planeAxis').value = 'x';
-    $('planeOff').value = '0';
-    $('planeOffVal').textContent = '0 cm';
-    actions.onChange();
-  });
-  $('btnSag').addEventListener('click', () => {
-    state.planeAxis = 'z';
-    state.planeOff = 0;
-    $('planeAxis').value = 'z';
-    $('planeOff').value = '0';
-    $('planeOffVal').textContent = '0 cm';
-    actions.onChange();
-  });
-  $('btnAxial').addEventListener('click', () => {
-    state.planeAxis = 'y';
-    state.planeOff = 0;
-    $('planeAxis').value = 'y';
-    $('planeOff').value = '0';
-    $('planeOffVal').textContent = '0 cm';
-    actions.onChange();
-  });
-
   document.querySelectorAll('#kvPresets button').forEach(btn => {
     btn.addEventListener('click', () => {
       state.kvp = Number(btn.dataset.kv);
