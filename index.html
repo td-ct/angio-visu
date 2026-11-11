@@ -58,6 +58,9 @@
       background: linear-gradient(to right, #1e3a8a, #06b6d4, #22c55e, #eab308, #f97316, #ef4444); }
     #hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; color: var(--muted);
       font-size: 11px; z-index: 4; background: rgba(15,23,42,.7); padding: 4px 10px; border-radius: 6px; }
+    #errbox { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 20; max-width: 560px; background: #450a0a; color: #fecaca; border: 1px solid #b91c1c;
+      border-radius: 10px; padding: 16px 20px; font-size: 14px; white-space: pre-wrap; }
     #cinebadge { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 6;
       background: #b91c1c; color: #fff; font-weight: 700; letter-spacing: .12em; padding: 4px 14px;
       border-radius: 6px; display: none; animation: blink 1s steps(2) infinite; }
@@ -67,6 +70,7 @@
 </head>
 <body>
   <div id="scene"></div>
+  <div id="errbox"></div>
   <div id="cinebadge">CINE</div>
 
   <div class="panel" id="controls">

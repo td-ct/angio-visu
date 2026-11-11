@@ -5,6 +5,18 @@ import { DoseSim, computeBeamGeometry, colormap, SKIN_SCALE_GY } from './dose.js
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 
 const container = document.getElementById('scene');
+const errbox = document.getElementById('errbox');
+function showErr(msg) {
+  errbox.style.display = 'block';
+  errbox.textContent = 'Visualisierung konnte nicht starten:\n' + msg;
+}
+window.addEventListener('error', e => showErr(e.message || String(e.error)));
+window.addEventListener('unhandledrejection', e => showErr((e.reason && e.reason.message) || String(e.reason)));
+
+const probe = document.createElement('canvas');
+if (!probe.getContext('webgl2') && !probe.getContext('webgl')) {
+  showErr('WebGL ist in diesem Browser nicht verfügbar.\nHardwarebeschleunigung aktivieren oder anderen Browser verwenden.\n(Tipp: die fertige Single-File-App "angio-visu.html" im Repo-Root per Doppelklick öffnen, nicht die Quell-index.html.)');
+}
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);

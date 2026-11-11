@@ -9,6 +9,7 @@
     "build": "vite build",
     "build:single": "vite build && node scripts/inline.mjs",
     "render:preview": "node scripts/render-preview.mjs",
+    "update:preview": "node scripts/render-preview.mjs && cp docs/preview.png preview.png",
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs"
   },

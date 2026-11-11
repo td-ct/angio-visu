@@ -5,14 +5,16 @@ Interaktive **3D-Visualisierung einer Angio-Intervention** (Koronarintervention)
 
 Educational / Demo — keine medizinische Anwendung, keine klinischen Dosiswerte.
 
-![Vorschau](assets/preview.png)
+![Vorschau](preview.png)
 
-Vorschau direkt neben `index.html` im Repo-Root: **[preview.png](preview.png)** (gleiche Datei
-auch in `assets/`, plus `assets/preview-ascii.txt` als Text-Version).
+Vorschau direkt neben `index.html` im Repo-Root: **[preview.png](preview.png)**.
+`assets/` ist als leeres Verzeichnis für künftige Dateien angelegt.
 
-`assets/preview.png` wird ohne Browser aus der echten Szenengeometrie + Dosis-Simulation
-software-gerendert: `npm run render:preview` (RAO 25°, kranial −10°, Katheter 85 %,
+`preview.png` wird ohne Browser aus der echten Szenengeometrie + Dosis-Simulation
+software-gerendert: `npm run update:preview` (RAO 25°, kranial −10°, Katheter 85 %,
 Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2 Gy).
+**Bei jeder Änderung an der Visualisierung mit `npm run update:preview` aktualisieren**
+(CI prüft, dass `preview.png` aktuell ist).
 
 ## Features
 
