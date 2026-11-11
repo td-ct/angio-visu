@@ -80,6 +80,7 @@ let lastField = 0;
 let lastMap = 0;
 let lastChart = 0;
 let planeDirty = true;
+let scatterAcc = 0;
 const clock = new THREE.Clock();
 
 function frame() {
@@ -111,6 +112,11 @@ function frame() {
     const params = doseParams();
     sim.accumulate(dt, params, geom, { n: world.nPts, pos: world.skinPos, nor: world.skinNor }, tableY, ell);
     field.accumulate(dt, params, geom, ell);
+    scatterAcc += dt;
+    if (scatterAcc >= 0.12) {
+      field.accumulateScatter(scatterAcc, params, geom, ell);
+      scatterAcc = 0;
+    }
     refreshSkinColors();
     planeDirty = true;
   } else {
@@ -199,6 +205,43 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const raycaster = new THREE.Raycaster();
+const pointerNdc = new THREE.Vector2();
+let draggingPlane = false;
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (!world.planeMesh.visible) return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  if (raycaster.intersectObject(world.planeMesh, false).length) {
+    draggingPlane = true;
+    controls.enabled = false;
+    renderer.domElement.style.cursor = 'grabbing';
+  }
+});
+window.addEventListener('pointermove', e => {
+  if (!draggingPlane) return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  const A = world.planeAxes[world.planeAxis];
+  const n = new THREE.Vector3(...A.n);
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, world.planeMesh.position);
+  const hit = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(plane, hit)) {
+    const off = THREE.MathUtils.clamp(hit.sub(ISO).dot(n), -0.6, 0.6);
+    state.planeOff = Math.round(off * 100);
+    const sl = document.getElementById('planeOff');
+    sl.value = String(state.planeOff);
+    document.getElementById('planeOffVal').textContent = state.planeOff + ' cm';
+  }
+});
+window.addEventListener('pointerup', () => {
+  if (draggingPlane) {
+    draggingPlane = false;
+    controls.enabled = true;
+    renderer.domElement.style.cursor = '';
+  }
 });
 
 refreshSkinColors();

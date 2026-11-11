@@ -42,6 +42,20 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
   - **Dosiswolke** als Punktewolke im Raum; Transparenz nimmt mit der Dosis ab
     (niedrige Dosis transparent, hohe Dosis deckend violett-schwarz)
   - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (mGy/s)**
+  - die Ebene lässt sich zusätzlich **per Drag & Drop entlang ihrer Normale verschieben**
+    (Position wird im CT-System relativ zum Isozentrum übernommen); Orientierung über
+    Select (Frontal/Sagittal/Axial) oder Snap-Buttons
+- **Streu-Modell** (leichtgewichtige physikalische Approximation, kVp-abhängig):
+  - kV-Schnellwahl (70/81/90/100/110 kV) + Slider 60–120 kVp
+  - Streufaktor `SPR(kVp, Feld) = 0.08·(A/100cm²)^0.35·(kVp/80)^1.5` und Rückstreufaktor
+    `BSF = 1 + min(0.5, 0.25·(A/100)^0.3·(80/kVp)^1.2)` — BSF nimmt mit kVp ab (harte Strahlung
+    streut weniger zurück); Anzeige von SPR/BSF im Dosis-Monitor
+  - 8 Streuquellen entlang des Nutzstrahls im Patienten (Primärdosis dort × SPR, gewichtet);
+    Streuung in **alle Richtungen** mit `1/d²` (abgeweicht im Nahfeld), Abschwächung auf dem
+    Streuweg durch den Patienten via µ(E_scat ≈ 0,4·kVp) über die Körperschnittlänge
+  - Hautdosis: Eintritt = Primär × BSF (Rückstreuung zur Quelle) + Streuung aus seitlichen
+    Richtungen (Rückwärts-Konus dort doppelt gezählt → dort exkludiert); Ka,r am IRP inkl. Streuanteil;
+    Dosisfeld im Raum erhält Primär (im Strahl) + Streuung (alle Voxel nahe der Patientenmitte)
 
 ## Start
 

@@ -1,4 +1,4 @@
-import { colormap, SKIN_SCALE_GY } from './dose.js';
+import { colormap, SKIN_SCALE_GY, scatterFraction, backscatterFactor } from './dose.js';
 
 export const state = {
   fluoro: false,
@@ -89,6 +89,15 @@ export function initUI(actions) {
     actions.onChange();
   });
 
+  document.querySelectorAll('#kvPresets button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.kvp = Number(btn.dataset.kv);
+      $('kvp').value = String(state.kvp);
+      $('kvpVal').textContent = state.kvp + ' kVp';
+      actions.onChange();
+    });
+  });
+
   $('fps').addEventListener('change', e => {
     state.fps = Number(e.target.value);
     actions.onChange();
@@ -137,6 +146,11 @@ export function updateReadouts(sim, geom, fieldMaxMGy = 0) {
   skinEl.className = 'v' + (peakGy >= 5 ? ' danger' : peakGy >= 2 ? ' warn' : '');
   $('rRate').textContent = sim.rate_mGy_s.toFixed(1) + ' mGy/s';
   $('rFieldMax').textContent = fmtGy(fieldMaxMGy / 1000);
+  if (geom) {
+    const p = doseParams();
+    $('rSpr').textContent = (scatterFraction(p.kVp, geom.fieldAtDet) * 100).toFixed(1) + ' %';
+    $('rBsf').textContent = backscatterFactor(p.kVp, geom.fieldAtDet).toFixed(2);
+  }
   $('rSsd').textContent = geom ? (geom.ssd * 100).toFixed(0) + ' cm' : '—';
   $('rField').textContent = geom ? (geom.fieldAtDet * 100).toFixed(0) + ' cm' : '—';
   const p = doseParams();

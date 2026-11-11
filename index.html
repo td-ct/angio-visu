@@ -95,6 +95,13 @@
       <input id="kvp" type="range" min="60" max="120" step="1" value="81" />
       <span class="val" id="kvpVal">81 kVp</span>
     </div>
+    <div class="btnrow" id="kvPresets">
+      <button data-kv="70">70 kV</button>
+      <button data-kv="81">81 kV</button>
+      <button data-kv="90">90 kV</button>
+      <button data-kv="100">100 kV</button>
+      <button data-kv="110">110 kV</button>
+    </div>
     <div class="row">
       <label for="pw">Pulsbreite</label>
       <input id="pw" type="range" min="2" max="10" step="0.5" value="4" />
@@ -186,6 +193,8 @@
     <div class="kv"><span class="k">DAP</span><span class="v" id="rDap">0,00 Gy·cm²</span></div>
     <div class="kv"><span class="k">Hautdosis max</span><span class="v" id="skinmax">0 mGy</span></div>
     <div class="kv"><span class="k">Dosisfeld max (Raum)</span><span class="v" id="rFieldMax">0 mGy</span></div>
+    <div class="kv"><span class="k">Streufaktor SPR</span><span class="v" id="rSpr">—</span></div>
+    <div class="kv"><span class="k">Rückstreufaktor BSF</span><span class="v" id="rBsf">—</span></div>
     <div class="kv"><span class="k">Dosisrate (IRP)</span><span class="v" id="rRate">0 mGy/s</span></div>
     <div class="kv"><span class="k">SSD (Hautabstand)</span><span class="v" id="rSsd">—</span></div>
     <div class="kv"><span class="k">Feldgröße (Detektor)</span><span class="v" id="rField">—</span></div>

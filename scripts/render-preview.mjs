@@ -238,9 +238,30 @@ for (const w of [u, vv]) {
 }
 
 const field = new DoseField(ISO);
-for (let s = 0; s < 1800; s++) field.accumulate(1, params, geom, [
-  { c: torsoC, r: torsoR }, { c: headC, r: headR }
-]);
+for (let s = 0; s < 1800; s++) {
+  field.accumulate(1, params, geom, [
+    { c: torsoC, r: torsoR }, { c: headC, r: headR }
+  ]);
+  if (s % 10 === 9) field.accumulateScatter(10, params, geom, [
+    { c: torsoC, r: torsoR }, { c: headC, r: headR }
+  ]);
+}
+{
+  const n = field.n, h = FIELD_SIZE / 2, cell = field.size / n;
+  const cc = [0, 0, 0];
+  let drawnC = 0;
+  for (let id = 0; id < n ** 3 && drawnC < 1400; id++) {
+    const d = field.data[id];
+    if (d < 30) continue;
+    const k = Math.floor(id / (n * n)), j = Math.floor(id / n) % n, i = id % n;
+    const p = new THREE.Vector3(ISO.x - h + (i + 0.5) * cell, ISO.y - h + (j + 0.5) * cell, ISO.z - h + (k + 0.5) * cell);
+    const t = d / 1000 / ROOM_SCALE_GY;
+    colormapRoom(t, cc);
+    circle(p, 2.4, cc, 0.10 + 0.75 * Math.min(1, t));
+    drawnC++;
+  }
+  console.error('cloud points drawn:', drawnC);
+}
 const PM = 40;
 const samp = field.sample('x', 0, PM);
 const fh = FIELD_SIZE / 2, fcell = FIELD_SIZE / PM;

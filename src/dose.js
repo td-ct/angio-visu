@@ -29,8 +29,76 @@ export function outputMicroGyPerMas(kVp) {
   return 45 * Math.pow(kVp / 80, 2.6);
 }
 
-export function backscatterFactor(kVp) {
-  return 1.28 + 0.12 * (kVp - 60) / 60;
+export function backscatterFactor(kVp, fieldAtDet = 0.3) {
+  const area = fieldAtDet * fieldAtDet * 1e4;
+  const fb = Math.min(0.5, 0.25 * Math.pow(area / 100, 0.3) * Math.pow(80 / kVp, 1.2));
+  return 1 + fb;
+}
+
+export function scatterFraction(kVp, fieldAtDet = 0.3) {
+  const area = fieldAtDet * fieldAtDet * 1e4;
+  return Math.min(0.8, 0.08 * Math.pow(area / 100, 0.35) * Math.pow(kVp / 80, 1.5));
+}
+
+export const SCATTER_SOURCES = 8;
+
+export function scatterSources(geom, ellipsoidsWorld, params) {
+  const src = geom.source, bd = geom.beamDir;
+  let t0 = Infinity, t1 = -Infinity;
+  for (const e of ellipsoidsWorld) {
+    const h = rayEllipsoid(src, bd, e.c, e.r);
+    if (h && h[1] > 0) {
+      t0 = Math.min(t0, Math.max(0, h[0]));
+      t1 = Math.max(t1, h[1]);
+    }
+  }
+  const out = [];
+  if (!(t1 > t0)) return out;
+  const { kVp, mA, pwMs, fps, cine } = params;
+  const Y = outputMicroGyPerMas(kVp) / 1000;
+  const mu = muWater(effectiveEnergy(kVp));
+  const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
+  const fs = scatterFraction(kVp, geom.fieldAtDet);
+  const n = SCATTER_SOURCES;
+  for (let i = 0; i < n; i++) {
+    const t = t0 + ((i + 0.5) / n) * (t1 - t0);
+    const p = src.clone().addScaledVector(bd, t);
+    const prim = Y * mAs * (1 / t) ** 2 * Math.exp(-mu * (t - t0)) * fps;
+    out.push({ p, s: prim * fs / n });
+  }
+  return out;
+}
+
+export function pathThrough(o, dir, dist, ellipsoidsWorld) {
+  let total = 0;
+  for (const e of ellipsoidsWorld) {
+    const h = rayEllipsoid(o, dir, e.c, e.r);
+    if (h) {
+      const a = Math.max(0, h[0]);
+      const b = Math.min(dist, h[1]);
+      if (b > a) total += b - a;
+    }
+  }
+  return total;
+}
+
+export function scatterRateAt(q, sources, kVp, ellipsoidsWorld, excludeBeamDir = null) {
+  if (!sources.length) return 0;
+  const muS = muWater(0.4 * kVp);
+  const R0 = 0.15;
+  let sum = 0;
+  for (const s of sources) {
+    const dx = q.x - s.p.x, dy = q.y - s.p.y, dz = q.z - s.p.z;
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < 1e-6) continue;
+    const d = Math.sqrt(d2);
+    const dir = { x: dx / d, y: dy / d, z: dz / d };
+    if (excludeBeamDir && (dir.x * excludeBeamDir.x + dir.y * excludeBeamDir.y + dir.z * excludeBeamDir.z) > 0.8) continue;
+    const exit = pathThrough(s.p, dir, d, ellipsoidsWorld);
+    const dEff2 = d2 + R0 * R0;
+    sum += s.s * (R0 * R0 / dEff2) * Math.exp(-muS * exit);
+  }
+  return sum;
 }
 
 const CMAP = [
@@ -157,10 +225,10 @@ export class DoseField {
     const { kVp, mA, pwMs, fps, cine, fieldFrac } = params;
     const Y = outputMicroGyPerMas(kVp) / 1000;
     const mu = muWater(effectiveEnergy(kVp));
-    const bsf = backscatterFactor(kVp);
+    const fieldAtDet = FIELD_MIN + (FIELD_MAX - FIELD_MIN) * fieldFrac;
+    const bsf = backscatterFactor(kVp, fieldAtDet);
     const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
     const nP = fps * dt;
-    const fieldAtDet = FIELD_MIN + (FIELD_MAX - FIELD_MIN) * fieldFrac;
     const src = geom.source, bd = geom.beamDir, sid = geom.sid;
     const r0 = 0.012, r1 = fieldAtDet / 2;
     const n = this.n;
@@ -184,6 +252,26 @@ export class DoseField {
           const dose = Y * mAs * (1 / d) ** 2 * bsf * Math.exp(-mu * chord) * edge * nP;
           const id = (k * n + j) * n + i;
           this.data[id] += dose;
+          if (this.data[id] > this.max) this.max = this.data[id];
+        }
+      }
+    }
+  }
+  accumulateScatter(dt, params, geom, ell) {
+    const sources = scatterSources(geom, ell, params);
+    if (!sources.length) return;
+    const kVp = params.kVp;
+    const n = this.n, c = this.center, h = this.size / 2, cell = this.cell;
+    const mid = sources[Math.floor(sources.length / 2)].p;
+    const p = { x: 0, y: 0, z: 0 };
+    for (let k = 0; k < n; k++) {
+      for (let j = 0; j < n; j++) {
+        for (let i = 0; i < n; i++) {
+          this.voxelPoint(i, j, k, p);
+          const dx = p.x - mid.x, dy = p.y - mid.y, dz = p.z - mid.z;
+          if (dx * dx + dy * dy + dz * dz > 0.65 * 0.65) continue;
+          const id = (k * n + j) * n + i;
+          this.data[id] += scatterRateAt(p, sources, kVp, ell) * dt;
           if (this.data[id] > this.max) this.max = this.data[id];
         }
       }
@@ -229,9 +317,9 @@ export function cellDoseRate(params, geom, ell, x, y, z) {
   const { kVp, mA, pwMs, fps, cine, fieldFrac } = params;
   const Y = outputMicroGyPerMas(kVp) / 1000;
   const mu = muWater(effectiveEnergy(kVp));
-  const bsf = backscatterFactor(kVp);
-  const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
   const fieldAtDet = FIELD_MIN + (FIELD_MAX - FIELD_MIN) * fieldFrac;
+  const bsf = backscatterFactor(kVp, fieldAtDet);
+  const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
   const src = geom.source, bd = geom.beamDir, sid = geom.sid;
   const vx = x - src.x, vy = y - src.y, vz = z - src.z;
   const t = vx * bd.x + vy * bd.y + vz * bd.z;
@@ -267,14 +355,16 @@ export class DoseSim {
     const { kVp, mA, pwMs, fps, cine, fieldFrac } = params;
     const Y = outputMicroGyPerMas(kVp) / 1000;
     const mu = muWater(effectiveEnergy(kVp));
-    const bsf = backscatterFactor(kVp);
+    const fieldAtDet = FIELD_MIN + (FIELD_MAX - FIELD_MIN) * fieldFrac;
+    const bsf = backscatterFactor(kVp, fieldAtDet);
     const mAs = mA * (pwMs / 1000) * (cine ? 4 : 1);
     const nPulses = fps * dt;
-    const fieldAtDet = FIELD_MIN + (FIELD_MAX - FIELD_MIN) * fieldFrac;
+    const sources = scatterSources(geom, ellipsoidsWorld, params);
 
     const kaIrp_pulse = Y * mAs * (1 / geom.dSrcIrp) ** 2 * geom.scatter;
-    this.kaR_mGy += kaIrp_pulse * nPulses;
-    this.rate_mGy_s = kaIrp_pulse * fps;
+    const scatIrp = sources.length ? scatterRateAt(geom.irp, sources, kVp, ellipsoidsWorld) / fps : 0;
+    this.kaR_mGy += (kaIrp_pulse + scatIrp) * nPulses;
+    this.rate_mGy_s = (kaIrp_pulse + scatIrp) * fps;
 
     const fieldAtIso = fieldAtDet * (geom.dSrcIso / geom.sid);
     const areaIso_cm2 = fieldAtIso * fieldAtIso * 1e4;
@@ -304,12 +394,18 @@ export class DoseSim {
       const lx = vx - t * bd.x, ly = vy - t * bd.y, lz = vz - t * bd.z;
       const r = Math.sqrt(lx * lx + ly * ly + lz * lz);
       const R = r0 + (r1 - r0) * (t / sid);
-      if (r > R) continue;
-      const edge = r > R * 0.85 ? (R - r) / (R * 0.15) : 1;
+      const edge = r > R ? 0 : (r > R * 0.85 ? (R - r) / (R * 0.15) : 1);
       const facing = -(nor[i * 3] * bd.x + nor[i * 3 + 1] * bd.y + nor[i * 3 + 2] * bd.z);
-      if (facing < 0.05) continue;
-      const ka = Y * mAs * (1 / d) ** 2 * bsf * edge * nPulses;
-      this.skinDoses[i] += ka;
+      const entrance = facing >= 0.05;
+      if (entrance) {
+        const ka = Y * mAs * (1 / d) ** 2 * bsf * edge * nPulses;
+        this.skinDoses[i] += ka;
+      }
+      if (sources.length) {
+        const q = { x: px, y: py, z: pz };
+        const scat = scatterRateAt(q, sources, kVp, ellipsoidsWorld, entrance ? bd : null) * dt;
+        this.skinDoses[i] += scat;
+      }
       if (this.skinDoses[i] > peak) {
         peak = this.skinDoses[i];
         peakIdx = i;
