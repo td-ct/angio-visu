@@ -71,7 +71,7 @@ function materialShapes() {
 
 let lastGeomKey = '';
 function refreshMaterialsIfDirty() {
-  const key = [smooth.rao, smooth.cran, smooth.table, world.tableOff.x, world.tableOff.z, state.mode].map(v => v.toFixed(3)).join('|');
+  const key = [smooth.rao, smooth.cran, smooth.table, world.tableOff.x, world.tableOff.z].map(v => v.toFixed(3)).concat(state.mode).join('|');
   if (key !== lastGeomKey) {
     lastGeomKey = key;
     field.center.copy(isoVec);
