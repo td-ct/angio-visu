@@ -11,7 +11,8 @@
     "render:preview": "node scripts/render-preview.mjs",
     "update:preview": "node scripts/render-preview.mjs && cp docs/preview.png preview.png",
     "preview": "vite preview",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test:bundle": "node scripts/check-singlefile.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
