@@ -15,7 +15,10 @@ export const state = {
   fieldMode: 'both',
   planeAxis: 'z',
   planeOff: 0,
-  fieldRate: false
+  fieldRate: false,
+  logScale: false,
+  cmap: 'room',
+  mode: 'hkl'
 };
 
 const $ = id => document.getElementById(id);
@@ -62,6 +65,18 @@ export function initUI(actions) {
   });
   $('fieldRate').addEventListener('change', e => {
     state.fieldRate = e.target.checked;
+    actions.onChange();
+  });
+  $('logScale').addEventListener('change', e => {
+    state.logScale = e.target.checked;
+    actions.onChange();
+  });
+  $('cmap').addEventListener('change', e => {
+    state.cmap = e.target.value;
+    actions.onChange();
+  });
+  $('mode').addEventListener('change', e => {
+    state.mode = e.target.value;
     actions.onChange();
   });
   $('btnFrontal').addEventListener('click', () => {

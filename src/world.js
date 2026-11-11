@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIELD_SIZE, FIELD_N, PLANE_SIZE, colormapRoom, colormapCloud } from './dose.js';
+import { FIELD_SIZE, FIELD_N, PLANE_SIZE, colormapNamed, logMap } from './dose.js';
 
 export const ISO = new THREE.Vector3(0, 1.0, -0.35);
 export const SID = 1.0;
@@ -189,19 +189,44 @@ export function buildWorld(scene) {
   const vesselMat = new THREE.MeshStandardMaterial({
     color: 0xe11d48, emissive: 0x6d0f24, roughness: 0.35, transparent: true, opacity: 0.95
   });
+  const neuroMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b, emissive: 0x7c3a06, roughness: 0.35, transparent: true, opacity: 0.95
+  });
   const aortaCurve = new THREE.CatmullRomCurve3(toV3(AORTA_POINTS), false, 'centripetal');
   const guideCurve = new THREE.CatmullRomCurve3(
     toV3(AORTA_POINTS.concat(LM_POINTS.slice(1), LAD_POINTS.slice(1))), false, 'centripetal'
   );
   const contrastCurve = new THREE.CatmullRomCurve3(toV3(LM_POINTS.concat(LAD_POINTS.slice(1))), false, 'centripetal');
 
+  const NEURO_ACCESS = [
+    [0.235, 0.06, -0.05], [0.2, 0.09, -0.22], [0.13, 0.12, -0.34], [0.07, 0.15, -0.44],
+    [-0.02, 0.165, -0.31], [0.0, 0.16, -0.52], [0.01, 0.17, -0.65], [0.02, 0.185, -0.76]
+  ];
+  const neuroCurve = new THREE.CatmullRomCurve3(toV3(NEURO_ACCESS), false, 'centripetal');
+  const neuroGuideCurve = neuroCurve;
+  const neuroContrastCurve = new THREE.CatmullRomCurve3(
+    toV3([[0.0, 0.16, -0.52], [0.01, 0.17, -0.65], [0.02, 0.185, -0.76], [0.0, 0.19, -0.8]]), false, 'centripetal'
+  );
+  const CAROTID_TREE = [
+    [[-0.02, 0.165, -0.31], [-0.01, 0.16, -0.45], [0.0, 0.16, -0.52], [0.01, 0.17, -0.65], [0.02, 0.185, -0.76], [0.0, 0.19, -0.8]],
+    [[0.03, 0.155, -0.4], [0.05, 0.15, -0.48], [0.05, 0.16, -0.58], [0.045, 0.17, -0.68], [0.04, 0.185, -0.76], [0.05, 0.19, -0.8]],
+    [[-0.035, 0.16, -0.58], [-0.035, 0.175, -0.7], [-0.03, 0.185, -0.78]],
+    [[0.035, 0.16, -0.58], [0.035, 0.175, -0.7], [0.03, 0.185, -0.78]]
+  ];
+  const carotidMeshes = CAROTID_TREE.map(pts => new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(toV3(pts), false, 'centripetal'), 40, 0.0042, 8), neuroMat
+  ));
+  carotidMeshes.forEach(m => { m.visible = false; tableGroup.add(m); });
+
   const aortaMesh = new THREE.Mesh(new THREE.TubeGeometry(aortaCurve, 96, 0.011, 10), vesselMat);
   tableGroup.add(aortaMesh);
-  for (const pts of [LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS]) {
+  const coronaryMeshes = [LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS].map(pts => {
     const c = new THREE.CatmullRomCurve3(toV3(pts), false, 'centripetal');
     const r = pts === LM_POINTS ? 0.0065 : 0.0052;
-    tableGroup.add(new THREE.Mesh(new THREE.TubeGeometry(c, 48, r, 8), vesselMat));
-  }
+    const m = new THREE.Mesh(new THREE.TubeGeometry(c, 48, r, 8), vesselMat);
+    tableGroup.add(m);
+    return m;
+  });
 
   const cathMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3 });
   const wireMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.2, metalness: 0.8 });
@@ -251,28 +276,27 @@ export function buildWorld(scene) {
   gantry.add(arc);
 
   const source = new THREE.Group();
-  source.position.set(0, SID / 2, 0);
+  source.position.set(0, -SID / 2, 0);
   const srcBody = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.15, 0.17),
     new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.5 }));
   const coll = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.13, 4),
     new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.5 }));
-  coll.rotation.x = Math.PI;
   coll.rotation.y = Math.PI / 4;
-  coll.position.y = -0.13;
+  coll.position.y = 0.13;
   source.add(srcBody, coll);
   gantry.add(source);
 
   const beamLight = new THREE.PointLight(0xffe6b0, 0, 3.5, 1.6);
-  beamLight.position.set(0, SID / 2 - 0.05, 0);
+  beamLight.position.set(0, -SID / 2 + 0.05, 0);
   gantry.add(beamLight);
 
   const detector = new THREE.Group();
-  detector.position.set(0, -SID / 2, 0);
+  detector.position.set(0, SID / 2, 0);
   const detBody = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.07, 0.46), standMat);
   const screenMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.12 });
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.38), screenMat);
   screen.rotation.x = Math.PI / 2;
-  screen.position.y = 0.041;
+  screen.position.y = -0.041;
   detector.add(detBody, screen);
   gantry.add(detector);
 
@@ -325,6 +349,7 @@ export function buildWorld(scene) {
   const cloudMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
+    blending: THREE.AdditiveBlending,
     vertexShader: `
       attribute vec3 aColor;
       attribute float aAlpha;
@@ -334,7 +359,7 @@ export function buildWorld(scene) {
         vC = aColor;
         vA = aAlpha;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = ${(FIELD_SIZE / cn * 1.7).toFixed(4)} * (280.0 / max(1.0, -mv.z));
+        gl_PointSize = ${(FIELD_SIZE / cn * 2.6).toFixed(4)} * (280.0 / max(1.0, -mv.z));
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -342,10 +367,10 @@ export function buildWorld(scene) {
       varying vec3 vC;
       varying float vA;
       void main() {
-        float m = smoothstep(0.5, 0.3, length(gl_PointCoord - 0.5));
-        float a = vA * m;
-        if (a < 0.01) discard;
-        gl_FragColor = vec4(vC, a);
+        float m = smoothstep(0.5, 0.12, length(gl_PointCoord - 0.5));
+        float a = vA * m * m;
+        if (a < 0.004) discard;
+        gl_FragColor = vec4(vC * a, a);
       }
     `
   });
@@ -386,7 +411,7 @@ export function buildWorld(scene) {
     setPlaneVisible(b) {
       planeMesh.visible = b;
     },
-    drawPlane(data, m, scaleUSv, isRate) {
+    drawPlane(data, m, scaleUSv, isRate, cmapName, logScale) {
       const img = planeCtx.createImageData(m, m);
       const c = [0, 0, 0];
       for (let b = 0; b < m; b++) {
@@ -394,11 +419,11 @@ export function buildWorld(scene) {
           const val = data[b * m + a];
           const o = ((m - 1 - b) * m + a) * 4;
           const usv = isRate ? val * 3.6e6 : val * 1000;
-          const t = Math.max(0, Math.min(1, usv / scaleUSv));
+          const t = logScale ? logMap(usv, scaleUSv) : Math.max(0, Math.min(1, usv / scaleUSv));
           if (usv <= 0.5) {
             img.data[o] = 245; img.data[o + 1] = 248; img.data[o + 2] = 252;
           } else {
-            colormapRoom(t, c);
+            colormapNamed(cmapName, t, c);
             img.data[o] = c[0] * 255; img.data[o + 1] = c[1] * 255; img.data[o + 2] = c[2] * 255;
           }
           img.data[o + 3] = 255;
@@ -410,23 +435,26 @@ export function buildWorld(scene) {
     setCloudVisible(b) {
       cloud.visible = b;
     },
-    updateCloud(field, scaleUSv, isRate) {
+    updateCloud(field, scaleUSv, isRate, cmapName, logScale, rateFn) {
       const n = field.n;
       const c = [0, 0, 0];
+      const h = field.size / 2, cell = field.size / n, ctr = field.center;
       const thr = isRate ? (0.02 * scaleUSv) / 3.6e6 : (0.02 * scaleUSv) / 1000;
       for (let id = 0; id < n ** 3; id++) {
-        const d = field.data[id];
+        const k = Math.floor(id / (n * n)), j = Math.floor(id / n) % n, i = id % n;
+        const x = ctr.x - h + (i + 0.5) * cell, y = ctr.y - h + (j + 0.5) * cell, z = ctr.z - h + (k + 0.5) * cell;
+        const d = isRate && rateFn ? rateFn(x, y, z) : field.data[id];
         if (d < thr) {
           calpha[id] = 0;
           continue;
         }
         const usv = isRate ? d * 3.6e6 : d * 1000;
-        const t = Math.max(0, Math.min(1, usv / scaleUSv));
-        colormapCloud(t, c);
+        const t = logScale ? logMap(usv, scaleUSv) : Math.max(0, Math.min(1, usv / scaleUSv));
+        colormapNamed(cmapName, t, c);
         ccol[id * 3] = c[0];
         ccol[id * 3 + 1] = c[1];
         ccol[id * 3 + 2] = c[2];
-        calpha[id] = 0.06 + 0.94 * t;
+        calpha[id] = 0.015 + 0.4 * t;
       }
       cloudGeo.attributes.aColor.needsUpdate = true;
       cloudGeo.attributes.aAlpha.needsUpdate = true;
@@ -441,20 +469,38 @@ export function buildWorld(scene) {
       gantry.rotation.z = THREE.MathUtils.degToRad(raoDeg);
       gantry.rotation.x = THREE.MathUtils.degToRad(cranDeg);
     },
+    anatomy: 'hkl',
+    setAnatomyMode(mode) {
+      this.anatomy = mode;
+      for (const m of coronaryMeshes) m.visible = mode === 'hkl';
+      for (const m of carotidMeshes) m.visible = mode === 'neuro';
+      aortaMesh.visible = true;
+      this._lastCath = -1;
+      this._lastContrast = -1;
+    },
+    setIso(v) {
+      gantry.position.copy(v);
+    },
+    activeCurves() {
+      return this.anatomy === 'neuro'
+        ? { cath: neuroCurve, guide: neuroGuideCurve, contrast: neuroContrastCurve }
+        : { cath: aortaCurve, guide: guideCurve, contrast: contrastCurve };
+    },
     setCatheter(u) {
       const uc = Math.max(0, Math.min(1, u));
       if (Math.abs(uc - (this._lastCath ?? -1)) < 0.0005) return;
       this._lastCath = uc;
+      const C = this.activeCurves();
       const uw = Math.max(0, Math.min(1, uc * 1.12 + 0.015));
       catheterMesh.visible = uc > 0.002;
       wireMesh.visible = uw > 0.004;
       if (catheterMesh.visible) {
         catheterMesh.geometry.dispose();
-        catheterMesh.geometry = new THREE.TubeGeometry(new PartialCurve(aortaCurve, Math.max(uc, 0.01)), 96, 0.0038, 8);
+        catheterMesh.geometry = new THREE.TubeGeometry(new PartialCurve(C.cath, Math.max(uc, 0.01)), 96, 0.0038, 8);
       }
       if (wireMesh.visible) {
         wireMesh.geometry.dispose();
-        wireMesh.geometry = new THREE.TubeGeometry(new PartialCurve(guideCurve, Math.max(uw, 0.01)), 128, 0.0016, 6);
+        wireMesh.geometry = new THREE.TubeGeometry(new PartialCurve(C.guide, Math.max(uw, 0.01)), 128, 0.0016, 6);
       }
     },
     setContrast(u, opacity) {
@@ -465,7 +511,7 @@ export function buildWorld(scene) {
       contrastMesh.visible = uu > 0.01 && opacity > 0.01;
       if (contrastMesh.visible) {
         contrastMesh.geometry.dispose();
-        contrastMesh.geometry = new THREE.TubeGeometry(new PartialCurve(contrastCurve, Math.max(uu, 0.02)), 64, 0.0075, 8);
+        contrastMesh.geometry = new THREE.TubeGeometry(new PartialCurve(this.activeCurves().contrast, Math.max(uu, 0.02)), 64, 0.0075, 8);
         contrastMesh.material.opacity = opacity;
       }
     },
@@ -477,12 +523,12 @@ export function buildWorld(scene) {
     },
     getSourceWorld(out) {
       gantry.updateMatrixWorld(true);
-      return out.set(0, SID / 2, 0).applyMatrix4(gantry.matrixWorld);
+      return out.set(0, -SID / 2, 0).applyMatrix4(gantry.matrixWorld);
     },
     getBeamDirWorld(out) {
       gantry.updateMatrixWorld(true);
-      const a = new THREE.Vector3(0, SID / 2, 0).applyMatrix4(gantry.matrixWorld);
-      const b = new THREE.Vector3(0, -1, 0).applyMatrix4(gantry.matrixWorld);
+      const a = new THREE.Vector3(0, -SID / 2, 0).applyMatrix4(gantry.matrixWorld);
+      const b = new THREE.Vector3(0, 1, 0).applyMatrix4(gantry.matrixWorld);
       return out.copy(b).sub(a).normalize();
     }
   };

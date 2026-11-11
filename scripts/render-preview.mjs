@@ -169,9 +169,9 @@ for (let i = 0; i <= 60; i++) {
   arcPts.push(lw([Math.cos(a) * SID / 2, Math.sin(a) * SID / 2, 0]));
 }
 for (let i = 0; i < arcPts.length - 1; i++) line(arcPts[i], arcPts[i + 1], 5, steel);
-const srcW = lw([0, SID / 2, 0]);
+const srcW = lw([0, -SID / 2, 0]);
 box(srcW, 0.17, 0.15, 0.17, R, [0.45, 0.52, 0.62]);
-box(lw([0, -SID / 2, 0]), 0.46, 0.07, 0.46, R, steel);
+box(lw([0, SID / 2, 0]), 0.46, 0.07, 0.46, R, steel);
 
 const torsoC = new THREE.Vector3(0, 0.14 + TY, -0.02);
 const torsoR = new THREE.Vector3(0.2, 0.14, 0.58);
@@ -204,7 +204,7 @@ for (const sx of [-1, 1]) {
   line(new THREE.Vector3(sx * 0.235, 0.06 + TY, -0.27), new THREE.Vector3(sx * 0.235, 0.06 + TY, 0.17), 5, skin, 0.45, false);
 }
 
-const bd = new THREE.Vector3(0, -1, 0).applyMatrix4(R).normalize();
+const bd = new THREE.Vector3(0, 1, 0).applyMatrix4(R).normalize();
 const geom = computeBeamGeometry(srcW, bd, ISO, SID, [
   { c: torsoC, r: torsoR },
   { c: headC, r: headR }

@@ -19,7 +19,11 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
 ## Features
 
 - 3D-Szene: Patient auf Kathetertisch, Aorta + Koronargefäße (LM/LAD, LCX, RCA), Herz,
-  C-Bogen mit Röntgenquelle und Flächendetektor, Strahlenkegel
+  C-Bogen mit **Unter-Tisch-Röhre** (Quelle unten, Flächendetektor oben — wie im HKL und in
+  der Neuro real üblich), Strahlenkegel
+- **Umschaltung HKL-Angio ↔ Neuro-Angio** (femoraler vs. radialer Zugang): Katheterpfad,
+  Gefäßbaum (Koronarien ↔ Karotis-/Vertebralisbaum) und Isozentrum/C-Bogen-Position (Kopf)
+  werden angepasst; Dosis wird zurückgesetzt
 - Intervention: Katheter/Guidewire-Vorschub vom femoralen Zugang zum Koronarostium,
   Kontrastmittel-Injektion in die Koronararterie
 - C-Bogen: LAO/RAO und kranial/kaudal verstellbar, Tischhöhe und Kollimation einstellbar
@@ -40,15 +44,21 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     exakt durch Patientenachse bzw. Isozentrum („Frontal Mitte", „Sagittal Iso", „Axial Iso"),
     Verschiebung per Slider immer relativ zum Isozentrum im CT-System — unabhängig von Kamera
     und C-Bogen. Farbskala auf der Ebene: **Grün → Gelb → Rot → Violett → fast Schwarz**
-  - **Dosiswolke** als Punktewolke im ganzen Raum (Voxelraster 4 m, Streu-Reichweite ~2,2 m);
-    Farbskala **Gelb → Orange → Rot → Violett** mit *zunehmender Opazität* bei höherer Dosis
-    (niedrige Dosis transparent-gelb, hohe Dosis deckend violett)
+  - **Dosiswolke** als **diffuses, additiv geblendetes Volumen** (keine harten Kugeln) im ganzen
+    Raum (Voxelraster 4 m, Streu-Reichweite ~2,2 m); Opazität nimmt mit der Dosis zu
   - **Ebene: konstante Opazität** (deckend weiß bzw. Farbe), keine Transparenzabstufung
+  - **umschaltbare Farbskala** (Ebene + Wolke): Grün→Gelb→Rot→Violett→Schwarz, Gelb→Orange→Rot→Violett,
+    Inferno, Blau→Rot
+  - **log-Skala** zuschaltbar (log10) für Dosis und Dosisleistung
   - Skalen: **Dosisrate** mit fester Skala 0–1000 µSv/h; **akkumulierte Dosis** mit
     mitwachsender Skala in µSv (auto = Feld-Max, mindestens 100 µSv)
-  - Referenzwerte Streustrahlung in **2 m Abstand** vom Isozentrum (mittlere Dosisstufe,
-    37-cm-Feld, AP): **~350–475 µSv/h bei 81 kVp**, ~1350–1700 µSv/h bei 110 kVp,
-    winkelabhängig (lateral 90° am geringsten ~350 µSv/h, in/nahe Strahlachse bis ~475 µSv/h)
+  - Abstandsabhängigkeit (Unter-Tisch-Röhre, 81 kVp, mittel, 37-cm-Feld, lateral):
+    **~3,2 mSv/h @ 1 m, ~0,8 mSv/h @ 2 m, ~0,35 mSv/h @ 3 m** (≈ 1/d²) — passt zu Literatur:
+    „nahe am Patienten einige mSv/h, auch bei einigen Metern noch einige Hundert µSv/h“
+    (z. B. asu-arbeitsmedizin.com Strahlenschutz-Durchleuchtung; JSCAI 2025 Phantomstudie:
+    meiste Streustrahlung auf der Röhrenseite/unter dem Tisch, Kopfnähe ~4× Bedienposition;
+    Augenlinse bis ~20 mSv/h im Cine ohne Deckenschutz — ScienceDirect 2014). Winkelabhängig:
+    bei 2 m ~350–475 µSv/h lateral, mehr in/nahe der Strahlachse; ~1350–1700 µSv/h bei 110 kVp
   - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (µSv/h)**
   - die Ebene lässt sich zusätzlich **per Drag & Drop entlang ihrer Normale verschieben**
     (Position wird im CT-System relativ zum Isozentrum übernommen); Orientierung über

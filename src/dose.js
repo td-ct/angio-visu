@@ -211,6 +211,42 @@ const CLOUD_CMAP = [
   [1.0, [140, 20, 200]]
 ];
 
+const INFERNO_CMAP = [
+  [0.0, [10, 8, 30]],
+  [0.25, [90, 20, 120]],
+  [0.5, [200, 60, 30]],
+  [0.75, [250, 170, 40]],
+  [1.0, [252, 250, 200]]
+];
+
+export const COLORMAP_NAMES = ['room', 'cloud', 'inferno', 'bluered'];
+
+const NAMED = { room: ROOM_CMAP, cloud: CLOUD_CMAP, inferno: INFERNO_CMAP };
+
+export function colormapNamed(name, t, out = [0, 0, 0]) {
+  if (name === 'bluered') return colormap(t, out);
+  const map = NAMED[name] || ROOM_CMAP;
+  const x = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < map.length; i++) {
+    if (x <= map[i][0]) {
+      const [t0, c0] = map[i - 1];
+      const [t1, c1] = map[i];
+      const f = (x - t0) / (t1 - t0);
+      out[0] = (c0[0] + (c1[0] - c0[0]) * f) / 255;
+      out[1] = (c0[1] + (c1[1] - c0[1]) * f) / 255;
+      out[2] = (c0[2] + (c1[2] - c0[2]) * f) / 255;
+      return out;
+    }
+  }
+  const c = map[map.length - 1][1];
+  out[0] = c[0] / 255; out[1] = c[1] / 255; out[2] = c[2] / 255;
+  return out;
+}
+
+export function logMap(usv, scale) {
+  return Math.log10(1 + Math.max(0, usv)) / Math.log10(1 + scale);
+}
+
 export function colormapCloud(t, out = [0, 0, 0]) {
   const x = Math.max(0, Math.min(1, t));
   for (let i = 1; i < CLOUD_CMAP.length; i++) {

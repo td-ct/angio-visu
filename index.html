@@ -140,6 +140,13 @@
 
     <h2>Intervention</h2>
     <div class="row">
+      <label for="mode">Untersuchung</label>
+      <select id="mode">
+        <option value="hkl" selected>HKL-Angio (femoral)</option>
+        <option value="neuro">Neuro-Angio (radial)</option>
+      </select>
+    </div>
+    <div class="row">
       <label for="cath">Katheter-Vorschub</label>
       <input id="cath" type="range" min="0" max="100" step="1" value="0" />
       <span class="val" id="cathVal">0 %</span>
@@ -179,6 +186,20 @@
       <label for="fieldRate">Dosisrate statt Dosis</label>
       <input id="fieldRate" type="checkbox" />
       <span class="val"></span>
+    </div>
+    <div class="row">
+      <label for="logScale">log-Skala</label>
+      <input id="logScale" type="checkbox" />
+      <span class="val"></span>
+    </div>
+    <div class="row">
+      <label for="cmap">Farbskala</label>
+      <select id="cmap">
+        <option value="room" selected>Grün→Gelb→Rot→Violett→Schwarz</option>
+        <option value="cloud">Gelb→Orange→Rot→Violett</option>
+        <option value="inferno">Inferno</option>
+        <option value="bluered">Blau→Rot</option>
+      </select>
     </div>
     <div class="btnrow">
       <button id="btnReset" class="danger">Dosis zurücksetzen</button>

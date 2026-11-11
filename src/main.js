@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, RATE_SCALE_USVH, DOSE_FLOOR_USV, scatterSources } from './dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, RATE_SCALE_USVH, DOSE_FLOOR_USV, scatterSources, scatterRateAt, cellDoseRate } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 
 const container = document.getElementById('scene');
@@ -98,10 +98,15 @@ function frame() {
   world.setTableY(tableY);
   world.setCatheter(smooth.cath);
 
+  if (state.mode !== lastMode) {
+    lastMode = state.mode;
+    applyMode();
+  }
+
   world.getSourceWorld(srcV);
   world.getBeamDirWorld(dirV);
   const ell = ellipsoidsAt(tableY);
-  const geom = computeBeamGeometry(srcV, dirV, ISO, SID, ell, state.coll);
+  const geom = computeBeamGeometry(srcV, dirV, isoVec, SID, ell, state.coll);
 
   const running = state.fluoro || state.cine;
   world.setBeam(geom.fieldAtDet, running);
@@ -144,26 +149,33 @@ function frame() {
   const hs = 1 + 0.035 * Math.sin(t * 7.5);
   world.heart.scale.set(hs, 0.9 * (2 - hs), 0.95);
 
+  world.setPlaneVisible(state.fieldMode !== 'cloud');
+  world.setCloudVisible(state.fieldMode !== 'plane');
+
   if (t - lastField > 0.15) {
     lastField = t;
     if (state.planeAxis !== world.planeAxis || state.planeOff / 100 !== world.planeOffset) {
       world.setPlane(state.planeAxis, state.planeOff / 100);
       planeDirty = true;
     }
-    world.setPlaneVisible(state.fieldMode !== 'cloud');
-    world.setCloudVisible(state.fieldMode !== 'plane');
     const isRate = state.fieldRate;
     const scaleUSv = isRate ? RATE_SCALE_USVH : Math.max(field.max * 1000, DOSE_FLOOR_USV);
     if (state.fieldMode !== 'cloud') {
       const params = doseParams();
+      const sources = scatterSources(geom, ell, params);
       const opts = isRate
-        ? { rate: true, params, geom, ell, sources: scatterSources(geom, ell, params) }
+        ? { rate: true, params, geom, ell, sources }
         : {};
       const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, opts);
-      world.drawPlane(s.data, world.PLANE_M, scaleUSv, isRate);
+      world.drawPlane(s.data, world.PLANE_M, scaleUSv, isRate, state.cmap, state.logScale);
     }
     if (state.fieldMode !== 'plane') {
-      world.updateCloud(field, scaleUSv, isRate);
+      const params = doseParams();
+      const sources = scatterSources(geom, ell, params);
+      const rateFn = isRate
+        ? (x, y, z) => cellDoseRate(params, geom, ell, x, y, z) + scatterRateAt({ x, y, z }, sources, params.kVp, ell)
+        : null;
+      world.updateCloud(field, scaleUSv, isRate, state.cmap, state.logScale, rateFn);
     }
   }
   if (t - lastMap > 0.2) {
@@ -198,8 +210,8 @@ initUI({
     field.reset();
     chart.reset();
     refreshSkinColors();
-    world.updateCloud(field, DOSE_FLOOR_USV, false);
-    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false);
+    world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);
+    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
     drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
   }
 });
@@ -248,7 +260,7 @@ window.addEventListener('pointerup', () => {
 });
 
 refreshSkinColors();
-world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false);
-world.updateCloud(field, DOSE_FLOOR_USV, false);
+world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
+world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);
 drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
 frame();
