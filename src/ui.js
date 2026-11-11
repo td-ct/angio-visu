@@ -140,6 +140,7 @@ export function updateReadouts(sim, geom, fieldMaxMGy = 0) {
   $('rPulses').textContent = Math.round(sim.pulses).toLocaleString('de-DE');
   $('rKar').textContent = fmtGy(sim.kaR_mGy / 1000);
   $('rDap').textContent = sim.dap_Gycm2.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Gy·cm²';
+  $('rDap2').textContent = sim.dap_Gycm2.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Gy·cm²';
   const skinEl = $('skinmax');
   const peakGy = sim.peak_mGy / 1000;
   skinEl.textContent = fmtGy(peakGy);
@@ -166,8 +167,8 @@ export class Chart {
   reset() {
     this.data.length = 0;
   }
-  push(t, rate, kar) {
-    this.data.push([t, rate, kar]);
+  push(t, rate, kar, dap = 0) {
+    this.data.push([t, rate, kar, dap]);
     if (this.data.length > 600) this.data.shift();
   }
   draw(now) {
@@ -180,9 +181,11 @@ export class Chart {
     if (pts.length < 2) return;
     let maxRate = 1;
     let maxKar = 1;
+    let maxDap = 1;
     for (const d of pts) {
       if (d[1] > maxRate) maxRate = d[1];
       if (d[2] > maxKar) maxKar = d[2];
+      if (d[3] > maxDap) maxDap = d[3];
     }
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
@@ -211,6 +214,16 @@ export class Chart {
       i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
     });
     ctx.stroke();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    pts.forEach((d, i) => {
+      const px = x(d[0]);
+      const py = H - (d[3] / maxDap) * (H - 6) - 3;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '9px sans-serif';
     ctx.fillText('max ' + maxRate.toFixed(1) + ' mGy/s', 4, 10);

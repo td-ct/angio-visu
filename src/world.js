@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIELD_SIZE, FIELD_N, colormapRoom, ROOM_SCALE_GY } from './dose.js';
+import { FIELD_SIZE, FIELD_N, PLANE_SIZE, colormapRoom, colormapCloud } from './dose.js';
 
 export const ISO = new THREE.Vector3(0, 1.0, -0.35);
 export const SID = 1.0;
@@ -127,8 +127,8 @@ export function buildWorld(scene) {
   const column = new THREE.Mesh(new THREE.BoxGeometry(0.24, 1.0, 0.24), standMat);
   column.position.set(-1.05, 0.5, -0.35);
   scene.add(column);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.14, 0.14), standMat);
-  arm.position.set(-0.52, 1.0, -0.35);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.14), standMat);
+  arm.position.set(-0.775, 1.0, -0.35);
   scene.add(arm);
 
   const tableGroup = new THREE.Group();
@@ -291,7 +291,7 @@ export function buildWorld(scene) {
   const planeCtx = planeCanvas.getContext('2d');
   const planeTex = new THREE.CanvasTexture(planeCanvas);
   planeTex.colorSpace = THREE.SRGBColorSpace;
-  const planeGeo = new THREE.PlaneGeometry(FIELD_SIZE, FIELD_SIZE);
+  const planeGeo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE);
   const planeMesh = new THREE.Mesh(
     planeGeo,
     new THREE.MeshBasicMaterial({ map: planeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false })
@@ -386,20 +386,22 @@ export function buildWorld(scene) {
     setPlaneVisible(b) {
       planeMesh.visible = b;
     },
-    drawPlane(data, m) {
+    drawPlane(data, m, scaleUSv, isRate) {
       const img = planeCtx.createImageData(m, m);
       const c = [0, 0, 0];
       for (let b = 0; b < m; b++) {
         for (let a = 0; a < m; a++) {
           const val = data[b * m + a];
           const o = ((m - 1 - b) * m + a) * 4;
-          if (val <= 0.05) {
-            img.data[o] = 245; img.data[o + 1] = 248; img.data[o + 2] = 252; img.data[o + 3] = 140;
+          const usv = isRate ? val * 3.6e6 : val * 1000;
+          const t = Math.max(0, Math.min(1, usv / scaleUSv));
+          if (usv <= 0.5) {
+            img.data[o] = 245; img.data[o + 1] = 248; img.data[o + 2] = 252;
           } else {
-            colormapRoom(val / 1000 / ROOM_SCALE_GY, c);
+            colormapRoom(t, c);
             img.data[o] = c[0] * 255; img.data[o + 1] = c[1] * 255; img.data[o + 2] = c[2] * 255;
-            img.data[o + 3] = 245;
           }
+          img.data[o + 3] = 255;
         }
       }
       planeCtx.putImageData(img, 0, 0);
@@ -408,21 +410,23 @@ export function buildWorld(scene) {
     setCloudVisible(b) {
       cloud.visible = b;
     },
-    updateCloud(field, thrMGy) {
+    updateCloud(field, scaleUSv, isRate) {
       const n = field.n;
       const c = [0, 0, 0];
+      const thr = isRate ? (0.02 * scaleUSv) / 3.6e6 : (0.02 * scaleUSv) / 1000;
       for (let id = 0; id < n ** 3; id++) {
         const d = field.data[id];
-        if (d < thrMGy) {
+        if (d < thr) {
           calpha[id] = 0;
           continue;
         }
-        const t = d / 1000 / ROOM_SCALE_GY;
-        colormapRoom(t, c);
+        const usv = isRate ? d * 3.6e6 : d * 1000;
+        const t = Math.max(0, Math.min(1, usv / scaleUSv));
+        colormapCloud(t, c);
         ccol[id * 3] = c[0];
         ccol[id * 3 + 1] = c[1];
         ccol[id * 3 + 2] = c[2];
-        calpha[id] = 0.12 + 0.88 * Math.min(1, t);
+        calpha[id] = 0.06 + 0.94 * t;
       }
       cloudGeo.attributes.aColor.needsUpdate = true;
       cloudGeo.attributes.aAlpha.needsUpdate = true;

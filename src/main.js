@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY } from './dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, RATE_SCALE_USVH, DOSE_FLOOR_USV, scatterSources } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 
 const container = document.getElementById('scene');
@@ -152,15 +152,18 @@ function frame() {
     }
     world.setPlaneVisible(state.fieldMode !== 'cloud');
     world.setCloudVisible(state.fieldMode !== 'plane');
+    const isRate = state.fieldRate;
+    const scaleUSv = isRate ? RATE_SCALE_USVH : Math.max(field.max * 1000, DOSE_FLOOR_USV);
     if (state.fieldMode !== 'cloud') {
-      const opts = state.fieldRate
-        ? { rate: true, params: doseParams(), geom, ell }
+      const params = doseParams();
+      const opts = isRate
+        ? { rate: true, params, geom, ell, sources: scatterSources(geom, ell, params) }
         : {};
       const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, opts);
-      world.drawPlane(s.data, world.PLANE_M);
+      world.drawPlane(s.data, world.PLANE_M, scaleUSv, isRate);
     }
     if (state.fieldMode !== 'plane') {
-      world.updateCloud(field, 20);
+      world.updateCloud(field, scaleUSv, isRate);
     }
   }
   if (t - lastMap > 0.2) {
@@ -173,7 +176,7 @@ function frame() {
   }
   if (t - lastChart > 0.25) {
     lastChart = t;
-    chart.push(sim.time_s, sim.rate_mGy_s, sim.kaR_mGy);
+    chart.push(sim.time_s, sim.rate_mGy_s, sim.kaR_mGy, sim.dap_Gycm2);
     chart.draw(sim.time_s);
   }
 
@@ -195,8 +198,8 @@ initUI({
     field.reset();
     chart.reset();
     refreshSkinColors();
-    world.updateCloud(field, 20);
-    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M);
+    world.updateCloud(field, DOSE_FLOOR_USV, false);
+    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false);
     drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
   }
 });
@@ -245,7 +248,7 @@ window.addEventListener('pointerup', () => {
 });
 
 refreshSkinColors();
-world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M);
-world.updateCloud(field, 20);
+world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false);
+world.updateCloud(field, DOSE_FLOOR_USV, false);
 drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
 frame();

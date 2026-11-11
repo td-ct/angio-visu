@@ -32,16 +32,24 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     plus 2D-Hautdosis-Karte (dorsal) und Dosis-Schnittebene im Isozentrum
   - Monitorgrößen: Ka,r (kumulativ, IRP 15 cm vom Isozentrum), DAP (Gy·cm²),
     Peak Skin Dose mit Schwellen (2 Gy / 5 Gy), Dosisrate, SSD, Feldgröße
-  - Dosisverlauf als Zeitplot (Dosisrate + kumulatives Ka,r)
+  - Dosisverlauf als Zeitplot (Dosisrate + kumulatives Ka,r + **DAP Gy·cm²** gestrichelt;
+    DAP akkumuliert steht direkt unter dem Plot, Panel mittig unten)
 - **Dosisfeld im Raum (CT-Koordinatensystem)**: akkumuliertes 3D-Voxelraster (44³ um das
   Isozentrum). Daraus zwei Ansichten:
   - **verschiebbare weiße Schnittebene** (Frontal x / Sagittal z / Axial y), Standardpositionen
     exakt durch Patientenachse bzw. Isozentrum („Frontal Mitte", „Sagittal Iso", „Axial Iso"),
     Verschiebung per Slider immer relativ zum Isozentrum im CT-System — unabhängig von Kamera
     und C-Bogen. Farbskala auf der Ebene: **Grün → Gelb → Rot → Violett → fast Schwarz**
-  - **Dosiswolke** als Punktewolke im Raum; Transparenz nimmt mit der Dosis ab
-    (niedrige Dosis transparent, hohe Dosis deckend violett-schwarz)
-  - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (mGy/s)**
+  - **Dosiswolke** als Punktewolke im ganzen Raum (Voxelraster 4 m, Streu-Reichweite ~2,2 m);
+    Farbskala **Gelb → Orange → Rot → Violett** mit *zunehmender Opazität* bei höherer Dosis
+    (niedrige Dosis transparent-gelb, hohe Dosis deckend violett)
+  - **Ebene: konstante Opazität** (deckend weiß bzw. Farbe), keine Transparenzabstufung
+  - Skalen: **Dosisrate** mit fester Skala 0–1000 µSv/h; **akkumulierte Dosis** mit
+    mitwachsender Skala in µSv (auto = Feld-Max, mindestens 100 µSv)
+  - Referenzwerte Streustrahlung in **2 m Abstand** vom Isozentrum (mittlere Dosisstufe,
+    37-cm-Feld, AP): **~350–475 µSv/h bei 81 kVp**, ~1350–1700 µSv/h bei 110 kVp,
+    winkelabhängig (lateral 90° am geringsten ~350 µSv/h, in/nahe Strahlachse bis ~475 µSv/h)
+  - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (µSv/h)**
   - die Ebene lässt sich zusätzlich **per Drag & Drop entlang ihrer Normale verschieben**
     (Position wird im CT-System relativ zum Isozentrum übernommen); Orientierung über
     Select (Frontal/Sagittal/Axial) oder Snap-Buttons
@@ -51,8 +59,11 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     `BSF = 1 + min(0.5, 0.25·(A/100)^0.3·(80/kVp)^1.2)` — BSF nimmt mit kVp ab (harte Strahlung
     streut weniger zurück); Anzeige von SPR/BSF im Dosis-Monitor
   - 8 Streuquellen entlang des Nutzstrahls im Patienten (Primärdosis dort × SPR, gewichtet);
-    Streuung in **alle Richtungen** mit `1/d²` (abgeweicht im Nahfeld), Abschwächung auf dem
-    Streuweg durch den Patienten via µ(E_scat ≈ 0,4·kVp) über die Körperschnittlänge
+    Streuung in **alle Richtungen** mit `1/d²` (Nahfeld abgeweicht via `sqrt(d²+R0²)`, R0=0,12 m,
+    kalibriert auf einige 100 µSv/h in 2 m), Abschwächung auf dem Streuweg durch den Patienten
+    via µ(E_scat ≈ 0,4·kVp) über die Körperschnittlänge
+  - Dosisfeld deckt den ganzen Raum ab (4-m-Raster um das Isozentrum); Streuung wird in alle
+    Voxel bis ~2,2 m um die Patientenmitte akkumuliert
   - Hautdosis: Eintritt = Primär × BSF (Rückstreuung zur Quelle) + Streuung aus seitlichen
     Richtungen (Rückwärts-Konus dort doppelt gezählt → dort exkludiert); Ka,r am IRP inkl. Streuanteil;
     Dosisfeld im Raum erhält Primär (im Strahl) + Streuung (alle Voxel nahe der Patientenmitte)

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ISO, SID, TABLE_BASE, AORTA_POINTS, OSTIUM, LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS, sampleEllipsoid
 } from '../src/world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, colormapRoom, ROOM_SCALE_GY, FIELD_SIZE } from '../src/dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, colormapRoom, colormapCloud, ROOM_SCALE_GY, PLANE_SIZE } from '../src/dose.js';
 
 const W = Number(process.env.PREVIEW_W || 1280);
 const H = Number(process.env.PREVIEW_H || 800);
@@ -247,24 +247,25 @@ for (let s = 0; s < 1800; s++) {
   ]);
 }
 {
-  const n = field.n, h = FIELD_SIZE / 2, cell = field.size / n;
+  const n = field.n, h = field.size / 2, cell = field.size / n;
   const cc = [0, 0, 0];
+  const scaleUSv = 2000;
   let drawnC = 0;
-  for (let id = 0; id < n ** 3 && drawnC < 1400; id++) {
+  for (let id = 0; id < n ** 3 && drawnC < 1600; id++) {
     const d = field.data[id];
-    if (d < 30) continue;
+    if (d * 1000 < 0.02 * scaleUSv) continue;
     const k = Math.floor(id / (n * n)), j = Math.floor(id / n) % n, i = id % n;
     const p = new THREE.Vector3(ISO.x - h + (i + 0.5) * cell, ISO.y - h + (j + 0.5) * cell, ISO.z - h + (k + 0.5) * cell);
-    const t = d / 1000 / ROOM_SCALE_GY;
-    colormapRoom(t, cc);
-    circle(p, 2.4, cc, 0.10 + 0.75 * Math.min(1, t));
+    const t = Math.min(1, (d * 1000) / scaleUSv);
+    colormapCloud(t, cc);
+    circle(p, 2.2, cc, 0.06 + 0.94 * t);
     drawnC++;
   }
   console.error('cloud points drawn:', drawnC);
 }
 const PM = 40;
 const samp = field.sample('x', 0, PM);
-const fh = FIELD_SIZE / 2, fcell = FIELD_SIZE / PM;
+const fh = PLANE_SIZE / 2, fcell = PLANE_SIZE / PM;
 const planeCol = [0.96, 0.97, 0.99];
 for (let b = 0; b < PM; b++) {
   for (let a = 0; a < PM; a++) {

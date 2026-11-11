@@ -85,7 +85,7 @@ export function pathThrough(o, dir, dist, ellipsoidsWorld) {
 export function scatterRateAt(q, sources, kVp, ellipsoidsWorld, excludeBeamDir = null) {
   if (!sources.length) return 0;
   const muS = muWater(0.4 * kVp);
-  const R0 = 0.15;
+  const R0 = 0.12;
   let sum = 0;
   for (const s of sources) {
     const dx = q.x - s.p.x, dy = q.y - s.p.y, dz = q.z - s.p.z;
@@ -198,8 +198,36 @@ export function computeBeamGeometry(source, beamDir, iso, sid, ellipsoidsWorld, 
 }
 
 export const ROOM_SCALE_GY = 5;
-export const FIELD_SIZE = 1.32;
-export const FIELD_N = 44;
+export const FIELD_SIZE = 4.0;
+export const FIELD_N = 50;
+export const PLANE_SIZE = 1.32;
+export const RATE_SCALE_USVH = 1000;
+export const DOSE_FLOOR_USV = 100;
+
+const CLOUD_CMAP = [
+  [0.0, [250, 240, 60]],
+  [0.33, [250, 150, 30]],
+  [0.55, [230, 50, 30]],
+  [1.0, [140, 20, 200]]
+];
+
+export function colormapCloud(t, out = [0, 0, 0]) {
+  const x = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < CLOUD_CMAP.length; i++) {
+    if (x <= CLOUD_CMAP[i][0]) {
+      const [t0, c0] = CLOUD_CMAP[i - 1];
+      const [t1, c1] = CLOUD_CMAP[i];
+      const f = (x - t0) / (t1 - t0);
+      out[0] = (c0[0] + (c1[0] - c0[0]) * f) / 255;
+      out[1] = (c0[1] + (c1[1] - c0[1]) * f) / 255;
+      out[2] = (c0[2] + (c1[2] - c0[2]) * f) / 255;
+      return out;
+    }
+  }
+  const c = CLOUD_CMAP[CLOUD_CMAP.length - 1][1];
+  out[0] = c[0] / 255; out[1] = c[1] / 255; out[2] = c[2] / 255;
+  return out;
+}
 
 export class DoseField {
   constructor(center) {
@@ -269,7 +297,7 @@ export class DoseField {
         for (let i = 0; i < n; i++) {
           this.voxelPoint(i, j, k, p);
           const dx = p.x - mid.x, dy = p.y - mid.y, dz = p.z - mid.z;
-          if (dx * dx + dy * dy + dz * dz > 0.65 * 0.65) continue;
+          if (dx * dx + dy * dy + dz * dz > 2.2 * 2.2) continue;
           const id = (k * n + j) * n + i;
           this.data[id] += scatterRateAt(p, sources, kVp, ell) * dt;
           if (this.data[id] > this.max) this.max = this.data[id];
@@ -280,15 +308,23 @@ export class DoseField {
   sample(axis, offset, m, opts = {}) {
     const rateMode = !!opts.rate;
     const params = opts.params, geom = opts.geom, ell = opts.ell;
-    const axes = {
+    const roles = {
+      x: { n: 0, u: 2, v: 1 },
+      y: { n: 1, u: 0, v: 2 },
+      z: { n: 2, u: 0, v: 1 }
+    };
+    const R = roles[axis];
+    const n = this.n, h = this.size / 2, cell = this.cell, c = this.center;
+    const axisVec = {
       x: { n: [1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
       y: { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, 1] },
       z: { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] }
     };
-    const A = axes[axis];
-    const n = this.n, h = this.size / 2, cell = this.cell, c = this.center;
+    const A = axisVec[axis];
     const out = new Float32Array(m * m);
     let max = 0;
+    const idx = [0, 0, 0];
+    const in0 = Math.max(0, Math.min(n - 1, Math.round((offset + h) / cell - 0.5)));
     for (let b = 0; b < m; b++) {
       for (let a = 0; a < m; a++) {
         const pa = (a + 0.5) / m * this.size - h;
@@ -296,14 +332,25 @@ export class DoseField {
         const x = c.x + A.n[0] * offset + A.u[0] * pa + A.v[0] * pb;
         const y = c.y + A.n[1] * offset + A.u[1] * pa + A.v[1] * pb;
         const z = c.z + A.n[2] * offset + A.u[2] * pa + A.v[2] * pb;
-        const i = Math.max(0, Math.min(n - 1, Math.floor((x - c.x + h) / cell)));
-        const j = Math.max(0, Math.min(n - 1, Math.floor((y - c.y + h) / cell)));
-        const k = Math.max(0, Math.min(n - 1, Math.floor((z - c.z + h) / cell)));
         let val;
         if (rateMode) {
-          val = cellDoseRate(params, geom, ell, x, y, z);
+          val = cellDoseRate(params, geom, ell, x, y, z) + scatterRateAt({ x, y, z }, opts.sources || [], params.kVp, ell);
         } else {
-          val = this.data[(k * n + j) * n + i];
+          const iu = Math.max(0, Math.min(n - 1.001, (pa + h) / cell - 0.5));
+          const iv = Math.max(0, Math.min(n - 1.001, (pb + h) / cell - 0.5));
+          const i0 = Math.floor(iu), j0 = Math.floor(iv);
+          const fu = iu - i0, fv = iv - j0;
+          const i1 = Math.min(n - 1, i0 + 1), j1 = Math.min(n - 1, j0 + 1);
+          idx[R.n] = in0;
+          idx[R.u] = i0; idx[R.v] = j0;
+          const v00 = this.data[(idx[2] * n + idx[1]) * n + idx[0]];
+          idx[R.u] = i1;
+          const v10 = this.data[(idx[2] * n + idx[1]) * n + idx[0]];
+          idx[R.u] = i0; idx[R.v] = j1;
+          const v01 = this.data[(idx[2] * n + idx[1]) * n + idx[0]];
+          idx[R.u] = i1;
+          const v11 = this.data[(idx[2] * n + idx[1]) * n + idx[0]];
+          val = (v00 * (1 - fu) + v10 * fu) * (1 - fv) + (v01 * (1 - fu) + v11 * fu) * fv;
         }
         out[b * m + a] = val;
         if (val > max) max = val;
