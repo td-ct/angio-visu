@@ -15,7 +15,10 @@ export const state = {
   fieldMode: 'both',
   planeAxis: 'z',
   planeOff: 0,
-  fieldRate: false,
+  fieldQuantity: 'dose',
+  scaleLock: false,
+  scaleMin: 0,
+  scaleMax: 1000,
   logScale: false,
   cmap: 'room',
   mode: 'hkl',
@@ -77,12 +80,34 @@ export function initUI(actions) {
     state.planeAxis = e.target.value;
     actions.onChange();
   });
-  $('fieldRate').addEventListener('change', e => {
-    state.fieldRate = e.target.checked;
+  const qDose = $('btnQDose'), qRate = $('btnQRate');
+  const setQuantity = q => {
+    state.fieldQuantity = q;
+    qDose.classList.toggle('active', q === 'dose');
+    qRate.classList.toggle('active', q === 'rate');
+    $('scaleUnit').textContent = q === 'rate' ? 'mSv/h' : 'µSv';
+    actions.onChange();
+  };
+  qDose.addEventListener('click', () => setQuantity('dose'));
+  qRate.addEventListener('click', () => setQuantity('rate'));
+
+  $('btnScaleLock').addEventListener('click', () => {
+    state.scaleLock = !state.scaleLock;
+    $('btnScaleLock').classList.toggle('active', state.scaleLock);
     actions.onChange();
   });
-  $('logScale').addEventListener('change', e => {
-    state.logScale = e.target.checked;
+  $('scaleMin').addEventListener('input', e => {
+    state.scaleMin = Number(e.target.value) || 0;
+    actions.onChange();
+  });
+  $('scaleMax').addEventListener('input', e => {
+    state.scaleMax = Number(e.target.value) || 0;
+    actions.onChange();
+  });
+  $('btnLogLin').addEventListener('click', () => {
+    state.logScale = !state.logScale;
+    $('btnLogLin').textContent = state.logScale ? 'lin' : 'log10';
+    $('btnLogLin').classList.toggle('active', state.logScale);
     actions.onChange();
   });
   $('cmap').addEventListener('change', e => {

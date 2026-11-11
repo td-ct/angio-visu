@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, RATE_SCALE_USVH, DOSE_FLOOR_USV, scatterSources, scatterRateAt, cellDoseRate } from './dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, scatterSources, scatterRateAt, cellDoseRate } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 import { openPlaneSnapshot } from './snapshot.js';
 
@@ -43,6 +43,21 @@ world.setIso(isoVec);
 world.setPlane(state.planeAxis, state.planeOff / 100);
 let lastMode = state.mode;
 
+function fieldOpts(planeMaxUnit) {
+  const isRate = state.fieldQuantity === 'rate';
+  const unitFactor = isRate ? 3600 : 1000;
+  const scaleMin = state.scaleMin;
+  const scaleMax = state.scaleLock ? state.scaleMax : Math.max(planeMaxUnit, scaleMin + 1e-6);
+  return {
+    unitFactor,
+    scaleMin,
+    scaleMax,
+    cmap: state.cmap,
+    log: state.logScale,
+    unit: isRate ? 'mSv/h' : 'µSv'
+  };
+}
+
 function applyMode() {
   isoVec = state.mode === 'neuro' ? new THREE.Vector3(0.02, 1.0, -0.72) : ISO.clone();
   world.setIso(isoVec);
@@ -53,8 +68,8 @@ function applyMode() {
   field.reset();
   chart.reset();
   refreshSkinColors();
-  world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);
-  world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
+  world.updateCloud(field, fieldOpts(1000), null);
+  world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, fieldOpts(1000));
   drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
 }
 
@@ -195,24 +210,22 @@ function frame() {
       world.setPlane(state.planeAxis, state.planeOff / 100);
       planeDirty = true;
     }
-    const isRate = state.fieldRate;
-    const scaleUSv = isRate ? RATE_SCALE_USVH : Math.max(field.max * 1000, DOSE_FLOOR_USV);
+    const isRate = state.fieldQuantity === 'rate';
+    const params = doseParams();
+    const sources = scatterSources(geom, ell, params);
+    const sampOpts = isRate
+      ? { rate: true, params, geom, ell: lastEll, sources }
+      : {};
+    const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, sampOpts);
+    const fo = fieldOpts(s.max * (isRate ? 3600 : 1000));
     if (state.fieldMode !== 'cloud') {
-      const params = doseParams();
-      const sources = scatterSources(geom, ell, params);
-      const opts = isRate
-        ? { rate: true, params, geom, ell, sources }
-        : {};
-      const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, opts);
-      world.drawPlane(s.data, world.PLANE_M, scaleUSv, isRate, state.cmap, state.logScale);
+      world.drawPlane(s.data, world.PLANE_M, fo);
     }
     if (state.fieldMode !== 'plane') {
-      const params = doseParams();
-      const sources = scatterSources(geom, ell, params);
       const rateFn = isRate
-        ? (x, y, z) => cellDoseRate(params, geom, ell, x, y, z) + scatterRateAt({ x, y, z }, sources, params.kVp, ell)
+        ? (x, y, z) => cellDoseRate(params, geom, lastEll, x, y, z) + scatterRateAt({ x, y, z }, sources, params.kVp, lastEll)
         : null;
-      world.updateCloud(field, scaleUSv, isRate, state.cmap, state.logScale, rateFn);
+      world.updateCloud(field, fo, rateFn);
     }
   }
   if (t - lastMap > 0.2) {
@@ -247,15 +260,19 @@ initUI({
   },
   onSnapshot() {
     if (!lastGeom) return;
-    const isRate = state.fieldRate;
-    const scaleUSv = isRate ? RATE_SCALE_USVH : Math.max(field.max * 1000, DOSE_FLOOR_USV);
+    const isRate = state.fieldQuantity === 'rate';
+    const s = field.sample(state.planeAxis, state.planeOff / 100, 64, isRate ? { rate: true, params: lastParams, geom: lastGeom, sources: lastSources, ell: lastEll } : {});
+    const fo = fieldOpts(s.max * (isRate ? 3600 : 1000));
     const labeledEll = lastEll.map((e, i) => ({ ...e, name: ELL_NAMES[i] || 'Weichteil (Wasser)' }));
     openPlaneSnapshot({
       field,
       axis: state.planeAxis,
       offset: state.planeOff / 100,
       isRate,
-      scaleUSv,
+      scaleMin: fo.scaleMin,
+      scaleMax: fo.scaleMax,
+      unitFactor: fo.unitFactor,
+      unit: fo.unit,
       cmap: state.cmap,
       logScale: state.logScale,
       source: lastGeom.source,
@@ -274,8 +291,8 @@ initUI({
     field.reset();
     chart.reset();
     refreshSkinColors();
-    world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);
-    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
+    world.updateCloud(field, fieldOpts(1000), null);
+    world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, fieldOpts(1000));
     drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
   }
 });
@@ -361,7 +378,7 @@ window.addEventListener('pointermove', e => {
 world.setLayers({ organs: state.showOrgans, bone: state.showBone, brain: state.showBrain });
 world.setTableOffset(0, 0);
 refreshSkinColors();
-world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, DOSE_FLOOR_USV, false, state.cmap, state.logScale);
-world.updateCloud(field, DOSE_FLOOR_USV, false, state.cmap, state.logScale, null);
+world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, fieldOpts(1000));
+world.updateCloud(field, fieldOpts(1000), null);
 drawSkinMap(skinCanvas, world.skinPos, world.skinNor, sim.skinDoses, world.nPts);
 frame();

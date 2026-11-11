@@ -348,7 +348,7 @@ export function buildWorld(scene) {
   beamGroup.add(...beamOuter, ...beamInner);
   gantry.add(beamGroup);
 
-  const PLANE_M = 128;
+  const PLANE_M = 256;
   const planeCanvas = document.createElement('canvas');
   planeCanvas.width = PLANE_M;
   planeCanvas.height = PLANE_M;
@@ -476,46 +476,108 @@ export function buildWorld(scene) {
     setPlaneVisible(b) {
       planeMesh.visible = b;
     },
-    drawPlane(data, m, scaleUSv, isRate, cmapName, logScale) {
+    drawPlane(data, m, o) {
       const img = planeCtx.createImageData(m, m);
       const c = [0, 0, 0];
+      const range = Math.max(1e-9, o.scaleMax - o.scaleMin);
       for (let b = 0; b < m; b++) {
         for (let a = 0; a < m; a++) {
           const val = data[b * m + a];
-          const o = ((m - 1 - b) * m + a) * 4;
-          const usv = isRate ? val * 3.6e6 : val * 1000;
-          const t = logScale ? logMap(usv, scaleUSv) : Math.max(0, Math.min(1, usv / scaleUSv));
-          if (usv <= 0.5) {
-            img.data[o] = 245; img.data[o + 1] = 248; img.data[o + 2] = 252;
+          const ox = ((m - 1 - b) * m + a) * 4;
+          const u = val * o.unitFactor;
+          if (u <= o.scaleMin + 0.5) {
+            img.data[ox] = 245; img.data[ox + 1] = 248; img.data[ox + 2] = 252;
           } else {
-            colormapNamed(cmapName, t, c);
-            img.data[o] = c[0] * 255; img.data[o + 1] = c[1] * 255; img.data[o + 2] = c[2] * 255;
+            const t = o.log ? logMap(u - o.scaleMin, range) : Math.max(0, Math.min(1, (u - o.scaleMin) / range));
+            colormapNamed(o.cmap, t, c);
+            img.data[ox] = c[0] * 255; img.data[ox + 1] = c[1] * 255; img.data[ox + 2] = c[2] * 255;
           }
-          img.data[o + 3] = 255;
+          img.data[ox + 3] = 255;
         }
       }
       planeCtx.putImageData(img, 0, 0);
+
+      const pxPerM = m / PLANE_SIZE;
+      for (let g = -1.3; g <= 1.3; g += 0.1) {
+        const isMajor = Math.abs(g / 0.5 - Math.round(g / 0.5)) < 1e-6;
+        const p = ((g + PLANE_SIZE / 2) / PLANE_SIZE) * m;
+        if (p < 0 || p > m) continue;
+        planeCtx.strokeStyle = isMajor ? 'rgba(71,85,105,0.55)' : 'rgba(100,116,139,0.28)';
+        planeCtx.lineWidth = isMajor ? 1.4 : 0.7;
+        planeCtx.beginPath();
+        planeCtx.moveTo(p, 0); planeCtx.lineTo(p, m);
+        planeCtx.moveTo(0, p); planeCtx.lineTo(m, p);
+        planeCtx.stroke();
+      }
+
+      const stripH = Math.round(m * 0.085);
+      planeCtx.fillStyle = 'rgba(255,255,255,0.9)';
+      planeCtx.fillRect(0, m - stripH, m, stripH);
+      const bx = m * 0.05, bw = m * 0.9, by = m - stripH + Math.round(stripH * 0.22), bh = Math.round(stripH * 0.42);
+      const grad = planeCtx.createLinearGradient(bx, 0, bx + bw, 0);
+      for (let i = 0; i <= 10; i++) {
+        colormapNamed(o.cmap, i / 10, c);
+        grad.addColorStop(i / 10, `rgb(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0})`);
+      }
+      planeCtx.fillStyle = grad;
+      planeCtx.fillRect(bx, by, bw, bh);
+      planeCtx.strokeStyle = '#0f172a';
+      planeCtx.lineWidth = 1;
+      planeCtx.strokeRect(bx, by, bw, bh);
+      planeCtx.fillStyle = '#0f172a';
+      planeCtx.font = `${Math.max(8, Math.round(m * 0.045))}px sans-serif`;
+      planeCtx.textBaseline = 'middle';
+      const fmt = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v * 10) / 10);
+      planeCtx.fillText(fmt(o.scaleMin), bx, by + bh + stripH * 0.32);
+      planeCtx.textAlign = 'right';
+      planeCtx.fillText(fmt(o.scaleMax) + ' ' + (o.unit || ''), bx + bw, by + bh + stripH * 0.32);
+      planeCtx.textAlign = 'left';
+
+      const barLen = pxPerM;
+      const gridStep = 0.1 * pxPerM;
+      const xMid = (Math.floor((m * 0.78) / gridStep) + 0.5) * gridStep;
+      const barY = m - 3;
+      planeCtx.strokeStyle = '#0f172a';
+      planeCtx.fillStyle = '#0f172a';
+      planeCtx.lineWidth = 1.6;
+      planeCtx.beginPath();
+      planeCtx.moveTo(xMid - barLen / 2, barY);
+      planeCtx.lineTo(xMid + barLen / 2, barY);
+      planeCtx.stroke();
+      for (const s of [-1, 1]) {
+        const ax = xMid + s * barLen / 2;
+        planeCtx.beginPath();
+        planeCtx.moveTo(ax, barY);
+        planeCtx.lineTo(ax - s * 5, barY - 3.5);
+        planeCtx.lineTo(ax - s * 5, barY + 3.5);
+        planeCtx.closePath();
+        planeCtx.fill();
+      }
+      planeCtx.font = `${Math.max(8, Math.round(m * 0.042))}px sans-serif`;
+      planeCtx.fillText('1 m', xMid - 8, barY - 8);
+
       planeTex.needsUpdate = true;
     },
     setCloudVisible(b) {
       cloud.visible = b;
     },
-    updateCloud(field, scaleUSv, isRate, cmapName, logScale, rateFn) {
+    updateCloud(field, o, rateFn) {
       const n = field.n;
       const c = [0, 0, 0];
       const h = field.size / 2, cell = field.size / n, ctr = field.center;
-      const thr = isRate ? (0.02 * scaleUSv) / 3.6e6 : (0.02 * scaleUSv) / 1000;
+      const range = Math.max(1e-9, o.scaleMax - o.scaleMin);
+      const thr = (o.scaleMin + 0.02 * range) / o.unitFactor;
       for (let id = 0; id < n ** 3; id++) {
         const k = Math.floor(id / (n * n)), j = Math.floor(id / n) % n, i = id % n;
         const x = ctr.x - h + (i + 0.5) * cell, y = ctr.y - h + (j + 0.5) * cell, z = ctr.z - h + (k + 0.5) * cell;
-        const d = isRate && rateFn ? rateFn(x, y, z) : field.data[id];
+        const d = rateFn ? rateFn(x, y, z) : field.data[id];
         if (d < thr) {
           calpha[id] = 0;
           continue;
         }
-        const usv = isRate ? d * 3.6e6 : d * 1000;
-        const t = logScale ? logMap(usv, scaleUSv) : Math.max(0, Math.min(1, usv / scaleUSv));
-        colormapNamed(cmapName, t, c);
+        const u = d * o.unitFactor;
+        const t = o.log ? logMap(u - o.scaleMin, range) : Math.max(0, Math.min(1, (u - o.scaleMin) / range));
+        colormapNamed(o.cmap, t, c);
         ccol[id * 3] = c[0];
         ccol[id * 3 + 1] = c[1];
         ccol[id * 3 + 2] = c[2];

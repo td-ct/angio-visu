@@ -57,11 +57,14 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
   - **Dosiswolke** als **diffuses, additiv geblendetes Volumen** (keine harten Kugeln) im ganzen
     Raum (Voxelraster 4 m, Streu-Reichweite ~2,2 m); Opazität nimmt mit der Dosis zu
   - **Ebene: konstante Opazität** (deckend weiß bzw. Farbe), keine Transparenzabstufung
+  - **Umschaltknöpfe Dosis (µSv) / Dosisleistung (mSv/h)**
+  - **Farbskala direkt auf der Ebene** eingezeichnet (Balken unten auf der Ebene mit Min/Max + Einheit)
+  - Ebene mit **dünnem festen Metergrid** (10-cm-Linien, 50-cm-Hauptlinien) und **1-m-Scalebar rechts
+    unten am unteren Bildrand, mittig zwischen zwei Gridlinien, mit Pfeilspitzen**
   - **umschaltbare Farbskala** (Ebene + Wolke): Grün→Gelb→Rot→Violett→Schwarz, Gelb→Orange→Rot→Violett,
     Inferno, Blau→Rot
-  - **log-Skala** zuschaltbar (log10) für Dosis und Dosisleistung
-  - Skalen: **Dosisrate** mit fester Skala 0–1000 µSv/h; **akkumulierte Dosis** mit
-    mitwachsender Skala in µSv (auto = Feld-Max, mindestens 100 µSv)
+  - Skala: **Default 0 bis Max auf der Ebene** (auto, je Einheit µSv bzw. mSv/h); rechts im Menü:
+    **🔒 Scale-Lock** + **Min**- und **Max**-Eingabefelder (Default 0 / 1000) + **lin/log10-Umschalter**
   - Abstandsabhängigkeit (Unter-Tisch-Röhre, 81 kVp, mittel, 37-cm-Feld, lateral):
     **~3,2 mSv/h @ 1 m, ~0,8 mSv/h @ 2 m, ~0,35 mSv/h @ 3 m** (≈ 1/d²) — passt zu Literatur:
     „nahe am Patienten einige mSv/h, auch bei einigen Metern noch einige Hundert µSv/h“

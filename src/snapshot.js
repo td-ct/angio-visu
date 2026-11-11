@@ -40,8 +40,8 @@ function beamSegments(source, beamDir, sid, labeledEll) {
 
 export function openPlaneSnapshot(opts) {
   const {
-    field, axis, offset, isRate, scaleUSv, cmap, logScale,
-    source, beamDir, sid, iso, labeledEll, planeAxes
+    field, axis, offset, isRate, scaleMin, scaleMax, unitFactor, unit, cmap, logScale,
+    source, beamDir, sid, iso, labeledEll, planeAxes, params, geom, sources, ell
   } = opts;
 
   const W = 1000, H = 1000, BAR = 110;
@@ -55,18 +55,19 @@ export function openPlaneSnapshot(opts) {
 
   const m = 250;
   const sampOpts = isRate
-    ? { rate: true, params: opts.params, geom: opts.geom, sources: opts.sources, ell: labeledEll }
+    ? { rate: true, params, geom, sources, ell: ell || labeledEll }
     : {};
   const s = field.sample(axis, offset, m, sampOpts);
   const img = ctx.createImageData(m, m);
   const c = [0, 0, 0];
+  const range = Math.max(1e-9, scaleMax - scaleMin);
   for (let b = 0; b < m; b++) {
     for (let a = 0; a < m; a++) {
       const val = s.data[b * m + a];
-      const usv = isRate ? val * 3.6e6 : val * 1000;
-      const t = logScale ? logMap(usv, scaleUSv) : Math.max(0, Math.min(1, usv / scaleUSv));
+      const u = val * unitFactor;
+      const t = logScale ? logMap(u - scaleMin, range) : Math.max(0, Math.min(1, (u - scaleMin) / range));
       const o = ((m - 1 - b) * m + a) * 4;
-      if (usv <= 0.5) {
+      if (u <= scaleMin + 0.5) {
         img.data[o] = 250; img.data[o + 1] = 251; img.data[o + 2] = 254;
       } else {
         colormapNamed(cmap, t, c);
@@ -111,7 +112,6 @@ export function openPlaneSnapshot(opts) {
   ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
 
   const axisName = { x: 'Frontal (x)', y: 'Axial (y)', z: 'Sagittal (z)' }[axis];
-  const unit = isRate ? 'µSv/h' : 'µSv';
   const modeName = isRate ? 'Dosisleistung' : 'akkumulierte Dosis';
   ctx.fillStyle = '#0f172a';
   ctx.textBaseline = 'alphabetic';
@@ -136,10 +136,10 @@ export function openPlaneSnapshot(opts) {
   ctx.fillStyle = '#0f172a';
   ctx.font = '600 20px system-ui, sans-serif';
   const fmt = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(v < 10 ? 1 : 0);
-  ctx.fillText('0', barX, barY + barH + 24);
-  ctx.fillText(`${fmt(scaleUSv)} ${unit}`, barX + barW, barY + barH + 24);
+  ctx.fillText(fmt(scaleMin), barX, barY + barH + 24);
+  ctx.fillText(`${fmt(scaleMax)} ${unit}`, barX + barW, barY + barH + 24);
   ctx.textAlign = 'center';
-  ctx.fillText(`Farbskala: ${modeName} in ${unit}${logScale ? ' · log10' : ''} · Skala 0–${fmt(scaleUSv)} ${unit}`, barX + barW / 2, barY - 8);
+  ctx.fillText(`Farbskala: ${modeName} in ${unit}${logScale ? ' · log10' : ''} · Skala ${fmt(scaleMin)}–${fmt(scaleMax)} ${unit}`, barX + barW / 2, barY - 8);
   ctx.textAlign = 'left';
 
   cv.toBlob(blob => {

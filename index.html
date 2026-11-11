@@ -212,15 +212,9 @@
       <button id="btnSag">Sagittal Iso</button>
       <button id="btnAxial">Axial Iso</button>
     </div>
-    <div class="row">
-      <label for="fieldRate">Dosisrate statt Dosis</label>
-      <input id="fieldRate" type="checkbox" />
-      <span class="val"></span>
-    </div>
-    <div class="row">
-      <label for="logScale">log-Skala</label>
-      <input id="logScale" type="checkbox" />
-      <span class="val"></span>
+    <div class="btnrow">
+      <button id="btnQDose" class="active">Dosis (µSv)</button>
+      <button id="btnQRate">Dosisleistung (mSv/h)</button>
     </div>
     <div class="row">
       <label for="cmap">Farbskala</label>
@@ -265,6 +259,15 @@
     <div class="kv"><span class="k">SSD (Hautabstand)</span><span class="v" id="rSsd">—</span></div>
     <div class="kv"><span class="k">Feldgröße (Detektor)</span><span class="v" id="rField">—</span></div>
     <div class="kv"><span class="k">mAs / Puls</span><span class="v" id="rMas">—</span></div>
+    <h2 style="margin-top:12px">Skala Ebene/Wolke</h2>
+    <div class="kv"><span class="k">Einheit</span><span class="v" id="scaleUnit">µSv</span></div>
+    <div class="btnrow">
+      <button id="btnScaleLock" title="Skala festhalten">🔒 Scale-Lock</button>
+      <button id="btnLogLin" title="linear ↔ logarithmisch">log10</button>
+    </div>
+    <div class="kv"><span class="k">Min</span><input id="scaleMin" type="number" value="0" step="any" style="width:90px;background:#0f172a;color:#e2e8f0;border:1px solid #1e293b;border-radius:6px;padding:3px 6px" /></div>
+    <div class="kv"><span class="k">Max</span><input id="scaleMax" type="number" value="1000" step="any" style="width:90px;background:#0f172a;color:#e2e8f0;border:1px solid #1e293b;border-radius:6px;padding:3px 6px" /></div>
+    <div class="sub" style="font-size:10px">ohne Lock: Min–Max der Ebene (auto)</div>
   </div>
 
   <div class="panel" id="bottom">
