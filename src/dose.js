@@ -41,7 +41,7 @@ export function scatterFraction(kVp, fieldAtDet = 0.3) {
 }
 
 export const MAT = { AIR: 0, WATER: 1, BONE: 2, METAL: 3, TABLE: 4 };
-const MAT_MU_SCALE = [0, 1, 1.9, 8, 1];
+const MAT_MU_SCALE = [0, 1, 3, 8, 1];
 
 export function fibDirs(n) {
   const dirs = [];
@@ -235,6 +235,7 @@ export class DoseField {
     this.scatterRate = new Float32Array(this.nc ** 3);
     this.scatterTmp = new Float32Array(this.nc ** 3);
     this.mat = new Uint8Array(this.n ** 3);
+    this.matC = new Uint8Array(this.nc ** 3);
     this.max = 0;
   }
   reset() {
@@ -315,6 +316,65 @@ export class DoseField {
         }
       }
     }
+    const nc = this.nc, ratio = this.n / nc;
+    for (let k = 0; k < nc; k++) {
+      for (let j = 0; j < nc; j++) {
+        for (let i = 0; i < nc; i++) {
+          const fi = Math.min(this.n - 1, Math.round(i * ratio));
+          const fj = Math.min(this.n - 1, Math.round(j * ratio));
+          const fk = Math.min(this.n - 1, Math.round(k * ratio));
+          this.matC[(k * nc + j) * nc + i] = this.mat[(fk * this.n + fj) * this.n + fi];
+        }
+      }
+    }
+  }
+  samplePoint(x, y, z) {
+    const n = this.n, h = this.size / 2, cell = this.cell, c = this.center;
+    const fu = (x - c.x + h) / cell - 0.5;
+    const fv = (y - c.y + h) / cell - 0.5;
+    const fw = (z - c.z + h) / cell - 0.5;
+    const i0 = Math.floor(fu), j0 = Math.floor(fv), k0 = Math.floor(fw);
+    if (i0 < -1 || j0 < -1 || k0 < -1 || i0 > n || j0 > n || k0 > n) return 0;
+    const au = fu - i0, av = fv - j0, aw = fw - k0;
+    let sum = 0;
+    for (let dk = 0; dk <= 1; dk++) {
+      const k = k0 + dk;
+      if (k < 0 || k >= n) continue;
+      for (let dj = 0; dj <= 1; dj++) {
+        const j = j0 + dj;
+        if (j < 0 || j >= n) continue;
+        const wv = (dj ? av : 1 - av) * (dk ? aw : 1 - aw);
+        for (let di = 0; di <= 1; di++) {
+          const i = i0 + di;
+          if (i < 0 || i >= n) continue;
+          sum += this.data[(k * n + j) * n + i] * (di ? au : 1 - au) * wv;
+        }
+      }
+    }
+    return sum;
+  }
+  samplePlane(cx, cy, cz, u, v, m, half, opts = {}) {
+    const out = new Float32Array(m * m);
+    let max = 0;
+    const rateMode = !!opts.rate;
+    for (let b = 0; b < m; b++) {
+      for (let a = 0; a < m; a++) {
+        const pa = (a + 0.5) / m * 2 * half - half;
+        const pb = (b + 0.5) / m * 2 * half - half;
+        const x = cx + u[0] * pa + v[0] * pb;
+        const y = cy + u[1] * pa + v[1] * pb;
+        const z = cz + u[2] * pa + v[2] * pb;
+        let val;
+        if (rateMode) {
+          val = cellDoseRate(opts.params, opts.geom, opts.ell, x, y, z) + (opts.scatterLookup ? opts.scatterLookup(x, y, z) : 0);
+        } else {
+          val = this.samplePoint(x, y, z);
+        }
+        out[b * m + a] = val;
+        if (val > max) max = val;
+      }
+    }
+    return { data: out, max };
   }
   accumulate(dt, params, geom, ell) {
     const { kVp, mA, pwMs, fps, cine, fieldFrac } = params;
@@ -408,7 +468,7 @@ export class DoseField {
         const m = this.mat[id];
         if (m !== MAT.AIR && id !== lastId && sources.length < (n >= 80 ? 160 : 480)) {
           const prim = Y * mAs * (1 / t) ** 2 * Math.exp(-muW * depth) * fps;
-          const f = (m === MAT.METAL ? 2.5 : 1) * (isSurface(id) ? 1.5 : 1);
+          const f = (m === MAT.METAL ? 2.5 : 1) * (isSurface(id) ? 2.0 : 1);
           sources.push({ x: px, y: py, z: pz, power: prim * spr * f * (Math.PI * R * R / nRays) * cell / 0.3 });
           lastId = id;
         }
@@ -479,7 +539,7 @@ export class DoseField {
                 }
               }
             }
-            dst[id] = sum / wsum;
+            dst[id] = this.matC[id] === MAT.AIR ? sum / wsum : srcA[id];
           }
         }
       }
@@ -492,7 +552,7 @@ export class DoseField {
         for (let j = 0; j < nc; j++) {
           for (let i = 0; i < nc; i++) {
             const id = (k * nc + j) * nc + i;
-            if (srcA[id] > 0) { dst[id] = srcA[id]; continue; }
+            if (this.matC[id] !== MAT.AIR || srcA[id] > 0) { dst[id] = srcA[id]; continue; }
             let sum = 0, cnt = 0;
             if (i > 0 && srcA[id - 1] > 0) { sum += srcA[id - 1]; cnt++; }
             if (i < nc - 1 && srcA[id + 1] > 0) { sum += srcA[id + 1]; cnt++; }

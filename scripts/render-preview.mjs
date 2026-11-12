@@ -210,9 +210,15 @@ for (const sx of [-1, 1]) {
 
 const bd = new THREE.Vector3(0, 1, 0).applyMatrix4(R).normalize();
 const ellPrev = [
+  { c: headC, r: headR.clone().multiplyScalar(1.18), mu: 3 },
+  { c: new THREE.Vector3(0, 0.115 + TY, -0.02), r: new THREE.Vector3(0.035, 0.032, 0.55), mu: 3 },
+  { c: new THREE.Vector3(0, 0.15 + TY, -0.30), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+  { c: new THREE.Vector3(0, 0.15 + TY, -0.37), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+  { c: new THREE.Vector3(0, 0.15 + TY, -0.44), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+  { c: new THREE.Vector3(0, 0.14, -0.51), r: new THREE.Vector3(0.15, 0.026, 0.022), mu: 3 },
+  { c: new THREE.Vector3(0, 0.10 + TY, 0.35), r: new THREE.Vector3(0.15, 0.045, 0.12), mu: 3 },
   { c: torsoC, r: torsoR, mu: 1 },
   { c: headC, r: headR, mu: 1 },
-  { c: headC, r: headR.clone().multiplyScalar(1.18), mu: 1.9 },
   { c: new THREE.Vector3(0, -0.05 + TY, 0), r: new THREE.Vector3(0.28, 0.05, 1.05), mu: 1 }
 ];
 const geom = computeBeamGeometry(srcW, bd, ISO, SID, ellPrev, 0.7);
@@ -244,9 +250,15 @@ for (const w of [u, vv]) {
 
 const field = new DoseField(ISO);
 field.fillMaterials([
+  { kind: 'ell', c: { x: headC.x, y: headC.y, z: headC.z }, r: { x: headR.x * 1.18, y: headR.y * 1.18, z: headR.z * 1.18 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: 0.115 + TY, z: -0.02 }, r: { x: 0.035, y: 0.032, z: 0.55 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: 0.15 + TY, z: -0.30 }, r: { x: 0.16, y: 0.028, z: 0.022 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: 0.15 + TY, z: -0.37 }, r: { x: 0.16, y: 0.028, z: 0.022 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: 0.15 + TY, z: -0.44 }, r: { x: 0.16, y: 0.028, z: 0.022 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: 0.14 + TY, z: -0.51 }, r: { x: 0.15, y: 0.026, z: 0.022 }, m: MAT.BONE },
+  { kind: 'ell', c: { x: 0, y: 0.10 + TY, z: 0.35 }, r: { x: 0.15, y: 0.045, z: 0.12 }, m: MAT.BONE },
   { kind: 'ell', c: { x: torsoC.x, y: torsoC.y, z: torsoC.z }, r: { x: torsoR.x, y: torsoR.y, z: torsoR.z }, m: MAT.WATER },
   { kind: 'ell', c: { x: headC.x, y: headC.y, z: headC.z }, r: { x: headR.x, y: headR.y, z: headR.z }, m: MAT.WATER },
-  { kind: 'ell', c: { x: headC.x, y: headC.y, z: headC.z }, r: { x: headR.x * 1.18, y: headR.y * 1.18, z: headR.z * 1.18 }, m: MAT.BONE },
   { kind: 'ell', c: { x: 0, y: -0.05 + TY, z: 0 }, r: { x: 0.28, y: 0.05, z: 1.05 }, m: MAT.TABLE },
   { kind: 'sph', c: { x: srcW.x, y: srcW.y, z: srcW.z }, r: 0.13, m: MAT.METAL },
   { kind: 'sph', c: { x: det.x, y: det.y, z: det.z }, r: 0.26, m: MAT.METAL }
@@ -273,7 +285,7 @@ for (let s = 0; s < 1800; s++) {
   console.error('cloud points drawn:', drawnC);
 }
 const PM = 40;
-const samp = field.sample('x', 0, PM);
+const samp = field.samplePlane(ISO.x, ISO.y, ISO.z, [0, 0, 1], [0, 1, 0], PM, PLANE_SIZE / 2);
 const fh = PLANE_SIZE / 2, fcell = PLANE_SIZE / PM;
 const planeCol = [0.96, 0.97, 0.99];
 for (let b = 0; b < PM; b++) {

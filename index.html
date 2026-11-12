@@ -61,6 +61,12 @@
     #errbox { display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
       z-index: 20; max-width: 560px; background: #450a0a; color: #fecaca; border: 1px solid #b91c1c;
       border-radius: 10px; padding: 16px 20px; font-size: 14px; white-space: pre-wrap; }
+    .muinfo { margin: 4px 0 8px; font-size: 11px; color: #cbd5e1; }
+    .muinfo summary { cursor: pointer; color: #7dd3fc; padding: 2px 0; }
+    .muinfo table { border-collapse: collapse; margin: 6px 0; width: 100%; }
+    .muinfo th, .muinfo td { border: 1px solid #334155; padding: 2px 4px; text-align: right; font-size: 10px; }
+    .muinfo th { background: #1e293b; }
+    .muinfo p { margin: 4px 0; line-height: 1.35; }
     #cinebadge { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 6;
       background: #b91c1c; color: #fff; font-weight: 700; letter-spacing: .12em; padding: 4px 14px;
       border-radius: 6px; display: none; animation: blink 1s steps(2) infinite; }
@@ -102,6 +108,24 @@
       <button data-kv="100">100 kV</button>
       <button data-kv="110">110 kV</button>
     </div>
+    <details class="muinfo">
+      <summary>? &micro;/Streu-Koeffizienten (NIST XCOM, ca.)</summary>
+      <table>
+        <thead><tr><th>Energie</th><th>Luft &micro;</th><th>Wasser &micro;</th><th>Weichteil &micro;</th><th>Knochen &micro;</th><th>Stahl &micro;</th></tr></thead>
+        <tbody>
+          <tr><td>20 keV</td><td>0,0008</td><td>0,81</td><td>0,80</td><td>7,6</td><td>~700</td></tr>
+          <tr><td>30 keV</td><td>0,0004</td><td>0,38</td><td>0,36</td><td>2,6</td><td>~90</td></tr>
+          <tr><td>40 keV</td><td>0.00030</td><td>0,27</td><td>0,25</td><td>1,28</td><td>~60</td></tr>
+          <tr><td>50 keV</td><td>0.00025</td><td>0,23</td><td>0,22</td><td>0,81</td><td>~35</td></tr>
+          <tr><td>60 keV</td><td>0.00021</td><td>0,21</td><td>0,20</td><td>0,60</td><td>~19</td></tr>
+          <tr><td>80 keV</td><td>0.00018</td><td>0,18</td><td>0,18</td><td>0,43</td><td>~8</td></tr>
+          <tr><td>100 keV</td><td>0.00015</td><td>0,17</td><td>0,17</td><td>0,36</td><td>~5</td></tr>
+          <tr><td>120 keV</td><td>0.00014</td><td>0,16</td><td>0,16</td><td>0,33</td><td>~4</td></tr>
+        </tbody>
+      </table>
+      <p>&micro; in 1/cm (linearer Schw&auml;chungskoeffizient; Knochen = kortikal ICRU-44, &rho;=1,92 g/cm&sup3;; Stahl = Fe, &rho;=7,87 g/cm&sup3;; Quelle: NIST XCOM). Im Modell: Wasser &times;1, Knochen &times;3, Tisch (wasser&auml;quivalent) &times;1, Metall &times;8; Streu-Energie E<sub>scat</sub> &asymp; 0,45&middot;kVp.</p>
+      <p><b>Streuung:</b> Compton dominiert bei Wasser/Weichteil ab ~30 keV (&sigma;<sub>C</sub>/&rho; &asymp; 0,15&ndash;0,2 cm&sup2;/g, ann&auml;hernd energieunabh&auml;ngig), dazu SPR/BSF kVp- und feldabh&auml;ngig (s. Modell). <b>Reflexion:</b> im Angio-Bereich (20&ndash;120 keV) quasi null &mdash; Brechungsindex n = 1&minus;&delta; mit &delta; &asymp; 10<sup>&minus;6</sup>&ndash;10<sup>&minus;5</sup>, Fresnel-Reflexion R &asymp; (&delta;/2)&sup2; &asymp; 10<sup>&minus;12</sup>&ndash;10<sup>&minus;10</sup> (nur unter streifendem Winkel &lt; ~1 mrad totale externe Reflexion). Relevante Wechselwirkungen sind Photoeffekt (Knochen, niedrige Energien) und Compton-Streuung.</p>
+    </details>
     <div class="row">
       <label for="pw">Pulsbreite</label>
       <input id="pw" type="range" min="2" max="10" step="0.5" value="4" />
@@ -195,25 +219,39 @@
       </select>
     </div>
     <div class="row">
-      <label for="planeAxis">Richtung</label>
-      <select id="planeAxis">
-        <option value="x">Frontal (x)</option>
-        <option value="z" selected>Sagittal (z)</option>
-        <option value="y">Axial (y)</option>
-      </select>
+      <label for="planeOffZ">Verschiebung axial (Z)</label>
+      <input id="planeOffZ" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeOffZVal">0 cm</span>
     </div>
     <div class="row">
-      <label for="planeNormal">Schnittebene</label>
-      <select id="planeNormal">
-        <option value="x">Frontal (x)</option>
-        <option value="z" selected>Sagittal (z)</option>
-        <option value="y">Axial (y)</option>
-      </select>
+      <label for="planeOffX">Verschiebung sagittal (X)</label>
+      <input id="planeOffX" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeOffXVal">0 cm</span>
     </div>
     <div class="row">
-      <label for="planeOff">Position (CT)</label>
-      <input id="planeOff" type="range" min="-60" max="60" step="1" value="0" />
-      <span class="val" id="planeOffVal">0 cm</span>
+      <label for="planeOffY">Verschiebung frontal (Y)</label>
+      <input id="planeOffY" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeOffYVal">0 cm</span>
+    </div>
+    <div class="row">
+      <label for="planeRotX">Kippen um X</label>
+      <input id="planeRotX" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeRotXVal">0&deg;</span>
+    </div>
+    <div class="row">
+      <label for="planeRotY">Kippen um Y</label>
+      <input id="planeRotY" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeRotYVal">0&deg;</span>
+    </div>
+    <div class="row">
+      <label for="planeRotZ">Kippen um Z</label>
+      <input id="planeRotZ" type="range" min="-60" max="60" step="1" value="0" />
+      <span class="val" id="planeRotZVal">0&deg;</span>
+    </div>
+    <div class="btnrow">
+      <button id="btnPlaneCarm">C-Bogen-Ebene</button>
+      <button id="btnPlaneLie">liegend (Tischachse)</button>
+      <button id="btnPlaneSteh">stehend (Tischachse)</button>
     </div>
     <div class="btnrow">
       <button id="btnQDose" class="active">Dosis (µSv)</button>

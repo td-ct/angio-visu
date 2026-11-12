@@ -1,9 +1,11 @@
-import { colormapNamed, logMap, PLANE_SIZE } from './dose.js';
+import { colormapNamed, logMap } from './dose.js';
 
 const MAT_COLORS = {
   'Tischplatte': '#475569',
   'Schädelknochen': '#b45309',
   'Wirbelsäule': '#b45309',
+  'Rippe': '#b45309',
+  'Becken': '#b45309',
   'Weichteil (Wasser)': '#0ea5e9',
   'Luft': null
 };
@@ -40,8 +42,8 @@ function beamSegments(source, beamDir, sid, labeledEll) {
 
 export function openPlaneSnapshot(opts) {
   const {
-    field, axis, offset, isRate, scaleMin, scaleMax, unitFactor, unit, cmap, logScale,
-    source, beamDir, sid, iso, labeledEll, planeAxes, params, geom, ell
+    field, center, u, v, n, half, planeLabel, planeOffCm, isRate, scaleMin, scaleMax, unitFactor, unit, cmap, logScale,
+    source, beamDir, sid, iso, labeledEll, params, geom, ell
   } = opts;
 
   const W = 1000, H = 1000, BAR = 152;
@@ -57,7 +59,7 @@ export function openPlaneSnapshot(opts) {
   const sampOpts = isRate
     ? { rate: true, params, geom, ell: ell || labeledEll, scatterLookup: (x, y, z) => field.scatterRateAt(x, y, z) }
     : {};
-  const s = field.sample(axis, offset, m, sampOpts);
+  const s = field.samplePlane(center[0], center[1], center[2], u, v, m, half, sampOpts);
   const img = ctx.createImageData(m, m);
   const c = [0, 0, 0];
   const range = Math.max(1e-9, scaleMax - scaleMin);
@@ -83,12 +85,10 @@ export function openPlaneSnapshot(opts) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(off, 0, 0, W, H);
 
-  const A = planeAxes[axis];
-  const center = { x: iso.x + A.n[0] * offset, y: iso.y + A.n[1] * offset, z: iso.z + A.n[2] * offset };
   const toPx = p => {
-    const a = (p.x - center.x) * A.u[0] + (p.y - center.y) * A.u[1] + (p.z - center.z) * A.u[2];
-    const b = (p.x - center.x) * A.v[0] + (p.y - center.y) * A.v[1] + (p.z - center.z) * A.v[2];
-    return [((a + PLANE_SIZE / 2) / PLANE_SIZE) * W, (1 - (b + PLANE_SIZE / 2) / PLANE_SIZE) * H];
+    const a = (p.x - center[0]) * u[0] + (p.y - center[1]) * u[1] + (p.z - center[2]) * u[2];
+    const b = (p.x - center[0]) * v[0] + (p.y - center[1]) * v[1] + (p.z - center[2]) * v[2];
+    return [((a + half) / (2 * half)) * W, (1 - (b + half) / (2 * half)) * H];
   };
 
   const segs = beamSegments(source, beamDir, sid, labeledEll);
@@ -111,15 +111,14 @@ export function openPlaneSnapshot(opts) {
   ctx.lineWidth = 3;
   ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
 
-  const axisName = { x: 'Frontal (x)', y: 'Axial (y)', z: 'Sagittal (z)' }[axis];
   const modeName = isRate ? 'Dosisleistung' : 'akkumulierte Dosis';
   ctx.fillStyle = '#0f172a';
   ctx.textBaseline = 'alphabetic';
   ctx.font = '600 26px system-ui, sans-serif';
-  ctx.fillText(`Schnittebene ${axisName} · Offset ${(offset * 100).toFixed(0)} cm · ${modeName}${logScale ? ' (log)' : ''}`, 24, H + 36);
+  ctx.fillText(`Schnittebene ${planeLabel} · Position X ${planeOffCm[0]} / Y ${planeOffCm[1]} / Z ${planeOffCm[2]} cm · ${modeName}${logScale ? ' (log)' : ''}`, 24, H + 36);
   ctx.font = '20px system-ui, sans-serif';
   ctx.fillStyle = '#334155';
-  ctx.fillText(`Durchstoßungslinie gefärbt nach Material:  ■ Tisch  ■ Schädelknochen  ■ Weichteil (Wasser)`, 24, H + 62);
+  ctx.fillText(`Durchstoßungslinie gefärbt nach Material:  ■ Tisch  ■ Knochen (Schädel/Wirbelsäule/Rippen/Becken)  ■ Weichteil (Wasser)`, 24, H + 62);
 
   const barX = 24, barY = H + 78, barW = W - 48, barH = 20;
   const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);

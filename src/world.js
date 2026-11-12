@@ -203,6 +203,10 @@ export function buildWorld(scene) {
   for (const [c, r] of ORGANS) organsGroup.add(ellipsoidMesh(new THREE.Vector3(...c), new THREE.Vector3(...r), organMat));
   const spine = ellipsoidMesh(new THREE.Vector3(0, 0.115, -0.02), new THREE.Vector3(0.035, 0.032, 0.55), boneMat);
   boneGroup.add(spine);
+  for (const z of [-0.30, -0.37, -0.44, -0.51]) {
+    boneGroup.add(ellipsoidMesh(new THREE.Vector3(0, 0.15, z), new THREE.Vector3(0.16, 0.028, 0.022), boneMat));
+  }
+  boneGroup.add(ellipsoidMesh(new THREE.Vector3(0, 0.10, 0.35), new THREE.Vector3(0.15, 0.045, 0.12), boneMat));
 
   const limbMat = waterMat;
   for (const sx of [-1, 1]) {
@@ -435,9 +439,15 @@ export function buildWorld(scene) {
     tableGroup, heart,
     skinPoints, skinPos, skinNor, nPts,
     ellipsoidsLocal: [
+      { c: headC.clone(), r: headR.clone().multiplyScalar(1.18), mu: 3 },
+      { c: new THREE.Vector3(0, 0.115, -0.02), r: new THREE.Vector3(0.035, 0.032, 0.55), mu: 3 },
+      { c: new THREE.Vector3(0, 0.15, -0.30), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.15, -0.37), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.15, -0.44), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.14, -0.51), r: new THREE.Vector3(0.15, 0.026, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.10, 0.35), r: new THREE.Vector3(0.15, 0.045, 0.12), mu: 3 },
       { c: torsoC.clone(), r: torsoR.clone(), mu: 1 },
       { c: headC.clone(), r: headR.clone(), mu: 1 },
-      { c: headC.clone(), r: headR.clone().multiplyScalar(1.18), mu: 1.9 },
       { c: new THREE.Vector3(0, -0.05, 0), r: new THREE.Vector3(0.28, 0.05, 1.05), mu: 1 }
     ],
     tableMesh: mattress,
@@ -471,17 +481,20 @@ export function buildWorld(scene) {
       y: { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, 1] },
       z: { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] }
     },
-    planeAxis: 'z',
-    planeOffset: 0,
-    setPlane(axis, offset) {
-      const A = this.planeAxes[axis];
-      const n = new THREE.Vector3(...A.n);
-      const u = new THREE.Vector3(...A.u);
-      const v = new THREE.Vector3(...A.v);
-      planeMesh.position.copy(ISO).addScaledVector(n, offset);
-      planeMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
-      this.planeAxis = axis;
-      this.planeOffset = offset;
+    setPlane(off, quat) {
+      planeMesh.position.copy(ISO).add(off);
+      planeMesh.quaternion.copy(quat);
+      this.planeOffsetVec = off;
+      this.planeQuat = quat;
+    },
+    planeBasis() {
+      const q = planeMesh.quaternion;
+      return {
+        n: new THREE.Vector3(0, 0, 1).applyQuaternion(q).toArray(),
+        u: new THREE.Vector3(1, 0, 0).applyQuaternion(q).toArray(),
+        v: new THREE.Vector3(0, 1, 0).applyQuaternion(q).toArray(),
+        center: planeMesh.position.toArray()
+      };
     },
     setPlaneVisible(b) {
       planeMesh.visible = b;

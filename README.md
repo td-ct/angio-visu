@@ -74,9 +74,11 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     ~400–600 µSv/h bei 2 m lateral, deutlich weniger hinter Detektor/C-Bogen (Metall-Schatten),
     mehr auf der Röhrenseite; steigt mit kVp (110 kVp etwa Faktor ~2,5 gegenüber 81 kVp)
   - umschaltbar zwischen **akkumulierter Dosis** und **Dosisrate (µSv/h)**
-  - die Ebene lässt sich **per Klick + Maus-Ziehen entlang der gewählten Achse (Normalen)**
-    verschieben (Position im CT-System relativ zum Isozentrum); Orientierung über
-    Select (Frontal/Sagittal/Axial) oder Snap-Buttons
+  - die Ebene („Leinwand“) wird frei im **CT-Koordinatensystem** gesteuert: **3 Slider verschieben**
+    sie axial/sagittal/frontal (X/Y/Z, ±60 cm), **3 Slider kippen** sie um die X/Y/Z-Achsen (±60°),
+    **3 Knöpfe** rotieren sie in eine Ebenenachse: **C-Bogen-Ebene** (Normalenvektor = C-Bogen-Normale),
+    **liegend entlang der Tischlängsachse** (horizontal) und **stehend entlang der Tischlängsachse**
+    (vertikal); zusätzlich per Klick + Maus-Ziehen entlang der Ebenennormalen verschiebbar
   - **📷 Kamera-Button („Ebene als Bild, neuer Tab")**: rendert die Ebene als PNG in einem
     neuen Tab — mit **Durchstoßungslinie des Nutzstrahls, gefärbt nach durchstoßenem Material**
     (Tisch / Schädelknochen / Weichteil-Wasser), **im Bild eingebetteter Farbskala mit Einheit
@@ -86,7 +88,7 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
   - Streufaktor `SPR(kVp, Feld) = 0.08·(A/100cm²)^0.35·(kVp/80)^1.5` und Rückstreufaktor
     `BSF = 1 + min(0.5, 0.25·(A/100)^0.3·(80/kVp)^1.2)` — BSF nimmt mit kVp ab; Anzeige von SPR/BSF im Dosis-Monitor
   - **Materialraster** über den ganzen Raum (4 m um das Isozentrum, Zellgröße wählbar **8/5/4 cm**):
-    Luft / Wasser (Patient: Torso, Kopf, Gliedmaßen) / Knochen (Schädelkalotte, µ×1,9) /
+    Luft / Wasser (Patient: Torso, Kopf, Gliedmaßen) / Knochen (Schädelkalotte, Wirbelsäule, Rippen, Becken; µ×3 nach NIST XCOM) /
     wasseräquivalente Tischplatte / Metall (Röhrengehäuse, Detektor, C-Bogen, Sockel, µ×8)
   - **Streuquellen**: der Nutzstrahl wird als **Fan** ( divergierende Strahlen von der Quelle durch
     das gesamte Feld am Detektor, Strahlabstand ~ eine Zelle) entlang des ganzen Weges durch das
@@ -106,6 +108,14 @@ Kontrast in der LAD, Hochdosis-Cine 5 min → Ka,r ≈ 2,0 Gy, Peak Skin ≈ 1,2
     (`data` = Dosis, `scatterRate` = Dosisleistung)
   - Hautdosis: Eintritt = Primär × BSF (Rückstreuung zur Quelle) + Streuanteil aus dem Raumfeld;
     Ka,r am IRP inkl. Streuanteil
+  - Glättung/Lückenfüllung auf dem Streu-Raster läuft **materialbewusst nur in Luftzellen** —
+    im wassergefüllten Körper wirkt entlang des ganzen Weges exp(−µ·Weg), Streustrahlung tritt
+    diffus an den **Oberflächen** (Ein-/Austritt, ×2-Quellen an Oberflächen-Voxeln) aus; Metall
+    (C-Bogen, Detektor, Sockel) und Tisch schirmen ab (Metall-Schatten hinter Detektor)
+  - **Koeffizienten-Tabelle** (ausklappbar „?“ hinter der kV-Auswahl, NIST XCOM): µ in 1/cm für
+    Luft/Wasser/Weichteil/Knochen(kortikal)/Stahl bei 20–120 keV. **Reflexion im Angio-Bereich quasi
+    null**: n = 1−δ mit δ ≈ 10⁻⁶–10⁻⁵ → Fresnel-R ≈ (δ/2)² ≈ 10⁻¹²–10⁻¹⁰ (nur streifend < ~1 mrad);
+    dominant sind Photoeffekt (Knochen) und Compton-Streuung (Wasser/Weichteil)
   - **Zur Library-Frage (FEM/Octree mit variabler Zellgröße 30/15/5/1 cm):** es gibt keine reife,
     getestete JS-Bibliothek für Röntgen-Streutransport. Goldstandard sind C++/Java/Python-Werkzeuge
     (Geant4, MCNP, SpekCalc/SpekPy) — als Web-App zu schwer. Implementiert ist daher ein

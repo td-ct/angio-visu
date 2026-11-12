@@ -13,8 +13,13 @@ export const state = {
   table: 0,
   cath: 0,
   fieldMode: 'both',
-  planeAxis: 'z',
-  planeOff: 0,
+  planeOffX: 0,
+  planeOffY: 0,
+  planeOffZ: 0,
+  planeRotX: 0,
+  planeRotY: 0,
+  planeRotZ: 0,
+  planePreset: 'steh',
   fieldQuantity: 'dose',
   scaleLock: false,
   scaleMin: 0,
@@ -62,7 +67,6 @@ export function initUI(actions) {
   bind('coll', 'coll', v => Number(v) / 100, '%');
   bind('table', 'table', Number, ' cm');
   bind('cath', 'cath', v => Number(v) / 100, '%');
-  bind('planeOff', 'planeOff', Number, ' cm');
   bind('tableZ', 'tableZ', Number, ' cm');
   bind('tableX', 'tableX', Number, ' cm');
 
@@ -77,15 +81,26 @@ export function initUI(actions) {
     state.fieldMode = e.target.value;
     actions.onChange();
   });
-  const planeSel = $('planeAxis'), planeNormSel = $('planeNormal');
-  const setPlaneAxis = v => {
-    state.planeAxis = v;
-    planeSel.value = v;
-    planeNormSel.value = v;
+  bind('planeOffX', 'planeOffX', Number, ' cm');
+  bind('planeOffY', 'planeOffY', Number, ' cm');
+  bind('planeOffZ', 'planeOffZ', Number, ' cm');
+  bind('planeRotX', 'planeRotX', Number, '\u00b0');
+  bind('planeRotY', 'planeRotY', Number, '\u00b0');
+  bind('planeRotZ', 'planeRotZ', Number, '\u00b0');
+  const setPreset = pr => {
+    state.planePreset = pr;
+    state.planeRotX = 0;
+    state.planeRotY = 0;
+    state.planeRotZ = 0;
+    for (const id of ['planeRotX', 'planeRotY', 'planeRotZ']) {
+      $(id).value = '0';
+      $(id + 'Val').textContent = '0\u00b0';
+    }
     actions.onChange();
   };
-  planeSel.addEventListener('change', e => setPlaneAxis(e.target.value));
-  planeNormSel.addEventListener('change', e => setPlaneAxis(e.target.value));
+  $('btnPlaneCarm').addEventListener('click', () => setPreset('carm'));
+  $('btnPlaneLie').addEventListener('click', () => setPreset('lie'));
+  $('btnPlaneSteh').addEventListener('click', () => setPreset('steh'));
   const qDose = $('btnQDose'), qRate = $('btnQRate');
   const setQuantity = q => {
     state.fieldQuantity = q;

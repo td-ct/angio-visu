@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, ISO, SID, TABLE_BASE } from './world.js';
-import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, cellDoseRate, MAT } from './dose.js';
+import { DoseSim, DoseField, computeBeamGeometry, colormap, SKIN_SCALE_GY, cellDoseRate, MAT, PLANE_SIZE } from './dose.js';
 import { state, initUI, doseParams, updateReadouts, Chart, drawSkinMap } from './ui.js';
 import { openPlaneSnapshot } from './snapshot.js';
 
@@ -86,7 +86,6 @@ function rebuildField() {
   world.rebuildCloud(n);
   world.updateCloud(field, fieldOpts(1000), null);
 }
-world.setPlane(state.planeAxis, state.planeOff / 100);
 let lastMode = state.mode;
 
 function fieldOpts(planeMaxUnit) {
@@ -147,7 +146,30 @@ const srcV = new THREE.Vector3();
 const dirV = new THREE.Vector3();
 let lastGeom = null, lastParams = null, lastEll = null;
 let lastRes = 8;
-const ELL_NAMES = ['Weichteil (Wasser)', 'Weichteil (Wasser)', 'Schädelknochen', 'Tischplatte'];
+const ELL_NAMES = ['Schädelknochen', 'Wirbelsäule', 'Rippe', 'Rippe', 'Rippe', 'Rippe', 'Becken', 'Weichteil (Wasser)', 'Weichteil (Wasser)', 'Tischplatte'];
+const PLANE_LABELS = { carm: 'C-Bogen-Ebene', lie: 'liegend (Tischachse)', steh: 'stehend (Tischachse)' };
+
+function planePose() {
+  const off = new THREE.Vector3(state.planeOffX / 100, state.planeOffY / 100, state.planeOffZ / 100);
+  let n;
+  if (state.planePreset === 'carm') {
+    world.gantry.updateMatrixWorld(true);
+    const g = new THREE.Vector3();
+    world.gantry.getWorldPosition(g);
+    n = new THREE.Vector3(0, 0, 1).applyMatrix4(world.gantry.matrixWorld).sub(g).normalize();
+  } else if (state.planePreset === 'lie') {
+    n = new THREE.Vector3(0, 1, 0);
+  } else {
+    n = new THREE.Vector3(1, 0, 0);
+  }
+  const qAlign = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  const qTilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+    THREE.MathUtils.degToRad(state.planeRotX),
+    THREE.MathUtils.degToRad(state.planeRotY),
+    THREE.MathUtils.degToRad(state.planeRotZ), 'XYZ'));
+  return { off, quat: qAlign.multiply(qTilt) };
+}
+let lastPoseKey = '';
 
 function refreshSkinColors() {
   const colors = world.skinPoints.geometry.attributes.color;
@@ -255,17 +277,21 @@ function frame() {
 
   if (t - lastField > 0.15) {
     lastField = t;
-    if (state.planeAxis !== world.planeAxis || state.planeOff / 100 !== world.planeOffset) {
-      world.setPlane(state.planeAxis, state.planeOff / 100);
+    const pose = planePose();
+    const poseKey = pose.off.toArray().map(v => v.toFixed(3)).join(',') + '|' + pose.quat.toArray().map(v => v.toFixed(4)).join(',');
+    if (poseKey !== lastPoseKey) {
+      lastPoseKey = poseKey;
+      world.setPlane(pose.off, pose.quat);
       planeDirty = true;
     }
+    const B = world.planeBasis();
     const isRate = state.fieldQuantity === 'rate';
     const params = doseParams();
     const lookup = (x, y, z) => field.scatterRateAt(x, y, z);
     const sampOpts = isRate
       ? { rate: true, params, geom, ell: lastEll, scatterLookup: lookup }
       : {};
-    const s = field.sample(state.planeAxis, state.planeOff / 100, world.PLANE_M, sampOpts);
+    const s = field.samplePlane(B.center[0], B.center[1], B.center[2], B.u, B.v, world.PLANE_M, PLANE_SIZE / 2, sampOpts);
     const fo = fieldOpts(s.max * (isRate ? 3600 : 1000));
     if (state.fieldMode !== 'cloud') {
       world.drawPlane(s.data, world.PLANE_M, fo);
@@ -314,13 +340,19 @@ initUI({
   onSnapshot() {
     if (!lastGeom) return;
     const isRate = state.fieldQuantity === 'rate';
-    const s = field.sample(state.planeAxis, state.planeOff / 100, 64, isRate ? { rate: true, params: lastParams, geom: lastGeom, ell: lastEll, scatterLookup: (x, y, z) => field.scatterRateAt(x, y, z) } : {});
+    const B0 = world.planeBasis();
+    const s = field.samplePlane(B0.center[0], B0.center[1], B0.center[2], B0.u, B0.v, 64, PLANE_SIZE / 2, isRate ? { rate: true, params: lastParams, geom: lastGeom, ell: lastEll, scatterLookup: (x, y, z) => field.scatterRateAt(x, y, z) } : {});
     const fo = fieldOpts(s.max * (isRate ? 3600 : 1000));
     const labeledEll = lastEll.map((e, i) => ({ ...e, name: ELL_NAMES[i] || 'Weichteil (Wasser)' }));
     openPlaneSnapshot({
       field,
-      axis: state.planeAxis,
-      offset: state.planeOff / 100,
+      center: B0.center,
+      u: B0.u,
+      v: B0.v,
+      n: B0.n,
+      half: PLANE_SIZE / 2,
+      planeLabel: PLANE_LABELS[state.planePreset] || 'frei',
+      planeOffCm: [state.planeOffX, state.planeOffY, state.planeOffZ],
       isRate,
       scaleMin: fo.scaleMin,
       scaleMax: fo.scaleMax,
@@ -333,7 +365,6 @@ initUI({
       sid: SID,
       iso: isoVec,
       labeledEll,
-      planeAxes: world.planeAxes,
       params: lastParams,
       geom: lastGeom,
 
@@ -373,16 +404,20 @@ window.addEventListener('pointermove', e => {
   if (!draggingPlane) return;
   pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointerNdc, camera);
-  const A = world.planeAxes[world.planeAxis];
-  const n = new THREE.Vector3(...A.n);
+  const B = world.planeBasis();
+  const n = new THREE.Vector3(...B.n);
   const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, world.planeMesh.position);
   const hit = new THREE.Vector3();
   if (raycaster.ray.intersectPlane(plane, hit)) {
-    const off = THREE.MathUtils.clamp(hit.sub(ISO).dot(n), -0.6, 0.6);
-    state.planeOff = Math.round(off * 100);
-    const sl = document.getElementById('planeOff');
-    sl.value = String(state.planeOff);
-    document.getElementById('planeOffVal').textContent = state.planeOff + ' cm';
+    const d = hit.sub(ISO).dot(n);
+    const off = n.clone().multiplyScalar(THREE.MathUtils.clamp(d, -0.6, 0.6));
+    state.planeOffX = Math.round(off.x * 100);
+    state.planeOffY = Math.round(off.y * 100);
+    state.planeOffZ = Math.round(off.z * 100);
+    for (const [id, v] of [['planeOffX', state.planeOffX], ['planeOffY', state.planeOffY], ['planeOffZ', state.planeOffZ]]) {
+      document.getElementById(id).value = String(v);
+      document.getElementById(id + 'Val').textContent = v + ' cm';
+    }
   }
 });
 window.addEventListener('pointerup', () => {
@@ -430,6 +465,11 @@ window.addEventListener('pointermove', e => {
 
 world.setLayers({ organs: state.showOrgans, bone: state.showBone, brain: state.showBrain });
 world.setTableOffset(0, 0);
+{
+  const p0 = planePose();
+  world.setPlane(p0.off, p0.quat);
+  lastPoseKey = p0.off.toArray().map(v => v.toFixed(3)).join(',') + '|' + p0.quat.toArray().map(v => v.toFixed(4)).join(',');
+}
 refreshSkinColors();
 world.drawPlane(new Float32Array(world.PLANE_M * world.PLANE_M), world.PLANE_M, fieldOpts(1000));
 world.updateCloud(field, fieldOpts(1000), null);
