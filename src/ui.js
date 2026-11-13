@@ -1,4 +1,4 @@
-import { colormap, SKIN_SCALE_GY } from './dose.js';
+import { colormap, SKIN_SCALE_GY, scatterFraction, backscatterFactor } from './dose.js';
 
 export const state = {
   fluoro: false,
@@ -11,7 +11,28 @@ export const state = {
   cran: 0,
   coll: 0.7,
   table: 0,
-  cath: 0
+  cath: 0,
+  fieldMode: 'both',
+  planeOffX: 0,
+  planeOffY: 0,
+  planeOffZ: 0,
+  planeRotX: 0,
+  planeRotY: 0,
+  planeRotZ: 0,
+  planePreset: 'steh',
+  fieldQuantity: 'dose',
+  scaleLock: false,
+  scaleMin: 0,
+  scaleMax: 1000,
+  logScale: false,
+  cmap: 'room',
+  mode: 'hkl',
+  fieldRes: 8,
+  tableX: 0,
+  tableZ: 0,
+  showOrgans: true,
+  showBone: true,
+  showBrain: true
 };
 
 const $ = id => document.getElementById(id);
@@ -46,6 +67,90 @@ export function initUI(actions) {
   bind('coll', 'coll', v => Number(v) / 100, '%');
   bind('table', 'table', Number, ' cm');
   bind('cath', 'cath', v => Number(v) / 100, '%');
+  bind('tableZ', 'tableZ', Number, ' cm');
+  bind('tableX', 'tableX', Number, ' cm');
+
+  for (const [id, key] of [['showOrgans', 'showOrgans'], ['showBone', 'showBone'], ['showBrain', 'showBrain']]) {
+    $(id).addEventListener('change', e => {
+      state[key] = e.target.checked;
+      actions.onChange();
+    });
+  }
+
+  $('fieldMode').addEventListener('change', e => {
+    state.fieldMode = e.target.value;
+    actions.onChange();
+  });
+  bind('planeOffX', 'planeOffX', Number, ' cm');
+  bind('planeOffY', 'planeOffY', Number, ' cm');
+  bind('planeOffZ', 'planeOffZ', Number, ' cm');
+  bind('planeRotX', 'planeRotX', Number, '\u00b0');
+  bind('planeRotY', 'planeRotY', Number, '\u00b0');
+  bind('planeRotZ', 'planeRotZ', Number, '\u00b0');
+  const setPreset = pr => {
+    state.planePreset = pr;
+    state.planeRotX = 0;
+    state.planeRotY = 0;
+    state.planeRotZ = 0;
+    for (const id of ['planeRotX', 'planeRotY', 'planeRotZ']) {
+      $(id).value = '0';
+      $(id + 'Val').textContent = '0\u00b0';
+    }
+    actions.onChange();
+  };
+  $('btnPlaneCarm').addEventListener('click', () => setPreset('carm'));
+  $('btnPlaneLie').addEventListener('click', () => setPreset('lie'));
+  $('btnPlaneSteh').addEventListener('click', () => setPreset('steh'));
+  const qDose = $('btnQDose'), qRate = $('btnQRate');
+  const setQuantity = q => {
+    state.fieldQuantity = q;
+    qDose.classList.toggle('active', q === 'dose');
+    qRate.classList.toggle('active', q === 'rate');
+    $('scaleUnit').textContent = q === 'rate' ? 'mSv/h' : 'µSv';
+    actions.onChange();
+  };
+  qDose.addEventListener('click', () => setQuantity('dose'));
+  qRate.addEventListener('click', () => setQuantity('rate'));
+
+  $('btnScaleLock').addEventListener('click', () => {
+    state.scaleLock = !state.scaleLock;
+    $('btnScaleLock').classList.toggle('active', state.scaleLock);
+    actions.onChange();
+  });
+  $('scaleMin').addEventListener('input', e => {
+    state.scaleMin = Number(e.target.value) || 0;
+    actions.onChange();
+  });
+  $('scaleMax').addEventListener('input', e => {
+    state.scaleMax = Number(e.target.value) || 0;
+    actions.onChange();
+  });
+  $('btnLogLin').addEventListener('click', () => {
+    state.logScale = !state.logScale;
+    $('btnLogLin').textContent = state.logScale ? 'lin' : 'log10';
+    $('btnLogLin').classList.toggle('active', state.logScale);
+    actions.onChange();
+  });
+  $('cmap').addEventListener('change', e => {
+    state.cmap = e.target.value;
+    actions.onChange();
+  });
+  $('mode').addEventListener('change', e => {
+    state.mode = e.target.value;
+    actions.onChange();
+  });
+  $('fieldRes').addEventListener('change', e => {
+    state.fieldRes = Number(e.target.value);
+    actions.onChange();
+  });
+  document.querySelectorAll('#kvPresets button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.kvp = Number(btn.dataset.kv);
+      $('kvp').value = String(state.kvp);
+      $('kvpVal').textContent = state.kvp + ' kVp';
+      actions.onChange();
+    });
+  });
 
   $('fps').addEventListener('change', e => {
     state.fps = Number(e.target.value);
@@ -69,6 +174,7 @@ export function initUI(actions) {
     actions.onChange();
   });
   $('btnContrast').addEventListener('click', () => actions.onContrast());
+  $('btnSnapshot').addEventListener('click', () => actions.onSnapshot());
   $('btnReset').addEventListener('click', () => actions.onReset());
 }
 
@@ -84,16 +190,23 @@ export function doseParams() {
   };
 }
 
-export function updateReadouts(sim, geom) {
+export function updateReadouts(sim, geom, fieldMaxMGy = 0) {
   $('rTime').textContent = fmtTime(sim.time_s);
   $('rPulses').textContent = Math.round(sim.pulses).toLocaleString('de-DE');
   $('rKar').textContent = fmtGy(sim.kaR_mGy / 1000);
   $('rDap').textContent = sim.dap_Gycm2.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Gy·cm²';
+  $('rDap2').textContent = sim.dap_Gycm2.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Gy·cm²';
   const skinEl = $('skinmax');
   const peakGy = sim.peak_mGy / 1000;
   skinEl.textContent = fmtGy(peakGy);
   skinEl.className = 'v' + (peakGy >= 5 ? ' danger' : peakGy >= 2 ? ' warn' : '');
   $('rRate').textContent = sim.rate_mGy_s.toFixed(1) + ' mGy/s';
+  $('rFieldMax').textContent = fmtGy(fieldMaxMGy / 1000);
+  if (geom) {
+    const p = doseParams();
+    $('rSpr').textContent = (scatterFraction(p.kVp, geom.fieldAtDet) * 100).toFixed(1) + ' %';
+    $('rBsf').textContent = backscatterFactor(p.kVp, geom.fieldAtDet).toFixed(2);
+  }
   $('rSsd').textContent = geom ? (geom.ssd * 100).toFixed(0) + ' cm' : '—';
   $('rField').textContent = geom ? (geom.fieldAtDet * 100).toFixed(0) + ' cm' : '—';
   const p = doseParams();
@@ -109,8 +222,8 @@ export class Chart {
   reset() {
     this.data.length = 0;
   }
-  push(t, rate, kar) {
-    this.data.push([t, rate, kar]);
+  push(t, rate, kar, dap = 0) {
+    this.data.push([t, rate, kar, dap]);
     if (this.data.length > 600) this.data.shift();
   }
   draw(now) {
@@ -123,9 +236,11 @@ export class Chart {
     if (pts.length < 2) return;
     let maxRate = 1;
     let maxKar = 1;
+    let maxDap = 1;
     for (const d of pts) {
       if (d[1] > maxRate) maxRate = d[1];
       if (d[2] > maxKar) maxKar = d[2];
+      if (d[3] > maxDap) maxDap = d[3];
     }
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
@@ -154,6 +269,16 @@ export class Chart {
       i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
     });
     ctx.stroke();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    pts.forEach((d, i) => {
+      const px = x(d[0]);
+      const py = H - (d[3] / maxDap) * (H - 6) - 3;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '9px sans-serif';
     ctx.fillText('max ' + maxRate.toFixed(1) + ' mGy/s', 4, 10);

@@ -1,0 +1,150 @@
+import { colormapNamed, logMap } from './dose.js';
+
+const MAT_COLORS = {
+  'Tischplatte': '#475569',
+  'Schädelknochen': '#b45309',
+  'Wirbelsäule': '#b45309',
+  'Rippe': '#b45309',
+  'Becken': '#b45309',
+  'Weichteil (Wasser)': '#0ea5e9',
+  'Luft': null
+};
+
+function pointIn(p, e) {
+  const dx = (p.x - e.c.x) / e.r.x, dy = (p.y - e.c.y) / e.r.y, dz = (p.z - e.c.z) / e.r.z;
+  return dx * dx + dy * dy + dz * dz <= 1;
+}
+
+function beamSegments(source, beamDir, sid, labeledEll) {
+  const steps = 240;
+  const segs = [];
+  let cur = null;
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * sid;
+    const p = {
+      x: source.x + beamDir.x * t,
+      y: source.y + beamDir.y * t,
+      z: source.z + beamDir.z * t
+    };
+    let label = 'Luft';
+    for (const e of labeledEll) {
+      if (pointIn(p, e)) { label = e.name; break; }
+    }
+    if (label !== cur) {
+      if (cur && MAT_COLORS[cur]) segs.push({ t0: segs._t0 ?? 0, t1: t, label: cur });
+      cur = label;
+      segs._t0 = t;
+    }
+  }
+  if (cur && MAT_COLORS[cur]) segs.push({ t0: segs._t0 ?? 0, t1: sid, label: cur });
+  return segs.filter(s => s.t1 > s.t0);
+}
+
+export function openPlaneSnapshot(opts) {
+  const {
+    field, center, u, v, n, half, planeLabel, planeOffCm, isRate, scaleMin, scaleMax, unitFactor, unit, cmap, logScale,
+    source, beamDir, sid, iso, labeledEll, params, geom, ell
+  } = opts;
+
+  const W = 1000, H = 1000, BAR = 152;
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H + BAR;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H + BAR);
+
+  const m = 250;
+  const sampOpts = isRate
+    ? { rate: true, params, geom, ell: ell || labeledEll, scatterLookup: (x, y, z) => field.scatterRateAt(x, y, z) }
+    : {};
+  const s = field.samplePlane(center[0], center[1], center[2], u, v, m, half, sampOpts);
+  const img = ctx.createImageData(m, m);
+  const c = [0, 0, 0];
+  const range = Math.max(1e-9, scaleMax - scaleMin);
+  for (let b = 0; b < m; b++) {
+    for (let a = 0; a < m; a++) {
+      const val = s.data[b * m + a];
+      const u = val * unitFactor;
+      const t = logScale ? logMap(u - scaleMin, range) : Math.max(0, Math.min(1, (u - scaleMin) / range));
+      const o = ((m - 1 - b) * m + a) * 4;
+      if (u <= scaleMin + 0.5) {
+        img.data[o] = 250; img.data[o + 1] = 251; img.data[o + 2] = 254;
+      } else {
+        colormapNamed(cmap, t, c);
+        img.data[o] = c[0] * 255; img.data[o + 1] = c[1] * 255; img.data[o + 2] = c[2] * 255;
+      }
+      img.data[o + 3] = 255;
+    }
+  }
+  const off = document.createElement('canvas');
+  off.width = m; off.height = m;
+  off.getContext('2d').putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(off, 0, 0, W, H);
+
+  const toPx = p => {
+    const a = (p.x - center[0]) * u[0] + (p.y - center[1]) * u[1] + (p.z - center[2]) * u[2];
+    const b = (p.x - center[0]) * v[0] + (p.y - center[1]) * v[1] + (p.z - center[2]) * v[2];
+    return [((a + half) / (2 * half)) * W, (1 - (b + half) / (2 * half)) * H];
+  };
+
+  const segs = beamSegments(source, beamDir, sid, labeledEll);
+  ctx.lineCap = 'round';
+  for (const sgm of segs) {
+    const p0 = { x: source.x + beamDir.x * sgm.t0, y: source.y + beamDir.y * sgm.t0, z: source.z + beamDir.z * sgm.t0 };
+    const p1 = { x: source.x + beamDir.x * sgm.t1, y: source.y + beamDir.y * sgm.t1, z: source.z + beamDir.z * sgm.t1 };
+    const [x0, y0] = toPx(p0);
+    const [x1, y1] = toPx(p1);
+    if (x0 < 0 && x1 < 0 || x0 > W && x1 > W || y0 < 0 && y1 < 0 || y0 > H && y1 > H) continue;
+    ctx.strokeStyle = MAT_COLORS[sgm.label] || '#111827';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+
+  const modeName = isRate ? 'Dosisleistung' : 'akkumulierte Dosis';
+  ctx.fillStyle = '#0f172a';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '600 26px system-ui, sans-serif';
+  ctx.fillText(`Schnittebene ${planeLabel} · Position X ${planeOffCm[0]} / Y ${planeOffCm[1]} / Z ${planeOffCm[2]} cm · ${modeName}${logScale ? ' (log)' : ''}`, 24, H + 36);
+  ctx.font = '20px system-ui, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText(`Durchstoßungslinie gefärbt nach Material:  ■ Tisch  ■ Knochen (Schädel/Wirbelsäule/Rippen/Becken)  ■ Weichteil (Wasser)`, 24, H + 62);
+
+  const barX = 24, barY = H + 78, barW = W - 48, barH = 20;
+  const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+  for (let i = 0; i <= 10; i++) {
+    const col = [0, 0, 0];
+    colormapNamed(cmap, i / 10, col);
+    grad.addColorStop(i / 10, `rgb(${(col[0] * 255) | 0},${(col[1] * 255) | 0},${(col[2] * 255) | 0})`);
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(barX, barY, barW, barH);
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(barX, barY, barW, barH);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '600 20px system-ui, sans-serif';
+  const fmt = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(v < 10 ? 1 : 0);
+  ctx.fillText(fmt(scaleMin), barX, barY + barH + 22);
+  ctx.fillText(`${fmt(scaleMax)} ${unit}`, barX + barW, barY + barH + 22);
+  ctx.textAlign = 'center';
+  ctx.fillText(`Farbskala: ${modeName} in ${unit}${logScale ? ' · log10' : ''} · Skala ${fmt(scaleMin)}–${fmt(scaleMax)} ${unit}`, barX + barW / 2, H + 144);
+  ctx.textAlign = 'left';
+
+  cv.toBlob(blob => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }, 'image/png');
+}

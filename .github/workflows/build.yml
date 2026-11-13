@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+    branches: [main, 'vibe/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:single
+      - run: cp dist/angio-visu.html angio-visu.html
+      - run: npm run test:bundle
+      - name: Vorschau-Bild prüfen (muss aktuell sein)
+        run: |
+          node scripts/render-preview.mjs
+          cp docs/preview.png preview.png
+          if ! git diff --exit-code --quiet -- docs/preview.png preview.png; then
+            echo "::error::preview.png ist veraltet - bitte 'npm run update:preview' ausfuehren und committen"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: angio-visu-single-html
+          path: dist/angio-visu.html
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: angio-visu-preview-png
+          path: preview.png
+          retention-days: 30

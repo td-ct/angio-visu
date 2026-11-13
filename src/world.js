@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FIELD_SIZE, FIELD_N, PLANE_SIZE, colormapNamed, logMap } from './dose.js';
 
 export const ISO = new THREE.Vector3(0, 1.0, -0.35);
 export const SID = 1.0;
@@ -16,7 +17,7 @@ class PartialCurve extends THREE.Curve {
   }
 }
 
-function sampleEllipsoid(center, radii, n) {
+export function sampleEllipsoid(center, radii, n) {
   const pos = new Float32Array(n * 3);
   const nor = new Float32Array(n * 3);
   const ga = Math.PI * (3 - Math.sqrt(5));
@@ -45,7 +46,7 @@ function sampleEllipsoid(center, radii, n) {
   return { pos, nor };
 }
 
-const AORTA_POINTS = [
+export const AORTA_POINTS = [
   [0.07, 0.045, 0.55],
   [0.06, 0.06, 0.32],
   [0.045, 0.075, 0.08],
@@ -55,11 +56,11 @@ const AORTA_POINTS = [
   [0.03, 0.15, -0.38],
   [0.035, 0.135, -0.43]
 ];
-const OSTIUM = [0.035, 0.135, -0.43];
-const LM_POINTS = [OSTIUM, [0.07, 0.125, -0.49], [0.095, 0.105, -0.55]];
-const LAD_POINTS = [[0.095, 0.105, -0.55], [0.1, 0.085, -0.62], [0.095, 0.07, -0.7]];
-const LCX_POINTS = [[0.07, 0.125, -0.49], [0.02, 0.115, -0.55], [-0.03, 0.1, -0.6], [-0.06, 0.095, -0.66]];
-const RCA_POINTS = [OSTIUM, [-0.005, 0.125, -0.475], [-0.045, 0.11, -0.53], [-0.055, 0.095, -0.6], [-0.05, 0.085, -0.67]];
+export const OSTIUM = [0.035, 0.135, -0.43];
+export const LM_POINTS = [OSTIUM, [0.07, 0.125, -0.49], [0.095, 0.105, -0.55]];
+export const LAD_POINTS = [[0.095, 0.105, -0.55], [0.1, 0.085, -0.62], [0.095, 0.07, -0.7]];
+export const LCX_POINTS = [[0.07, 0.125, -0.49], [0.02, 0.115, -0.55], [-0.03, 0.1, -0.6], [-0.06, 0.095, -0.66]];
+export const RCA_POINTS = [OSTIUM, [-0.005, 0.125, -0.475], [-0.045, 0.11, -0.53], [-0.055, 0.095, -0.6], [-0.05, 0.085, -0.67]];
 
 function toV3(list) {
   return list.map(p => new THREE.Vector3(p[0], p[1], p[2]));
@@ -126,8 +127,8 @@ export function buildWorld(scene) {
   const column = new THREE.Mesh(new THREE.BoxGeometry(0.24, 1.0, 0.24), standMat);
   column.position.set(-1.05, 0.5, -0.35);
   scene.add(column);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.14, 0.14), standMat);
-  arm.position.set(-0.52, 1.0, -0.35);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 0.14), standMat);
+  arm.position.set(-0.775, 1.0, -0.35);
   scene.add(arm);
 
   const tableGroup = new THREE.Group();
@@ -140,30 +141,74 @@ export function buildWorld(scene) {
   mattress.position.y = -0.035;
   tableGroup.add(mattress);
   const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.8, 0.45), standMat);
-  pedestal.position.y = -0.47;
-  tableGroup.add(pedestal);
+  pedestal.position.set(0, 0.8 - 0.47, 0);
+  scene.add(pedestal);
 
-  const skinMat = new THREE.MeshStandardMaterial({
-    color: 0xd8a47e, roughness: 0.65, transparent: true, opacity: 0.32, depthWrite: false
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x7dd3fc, roughness: 0.25, transparent: true, opacity: 0.30, depthWrite: false
+  });
+  const organMat = new THREE.MeshStandardMaterial({
+    color: 0xf87171, roughness: 0.5, transparent: true, opacity: 0.4, depthWrite: false
+  });
+  const boneMat = new THREE.MeshStandardMaterial({
+    color: 0xe7e5d8, roughness: 0.6, transparent: true, opacity: 0.30, depthWrite: false
+  });
+  const brainMat = new THREE.MeshStandardMaterial({
+    color: 0xf0abfc, roughness: 0.6, transparent: true, opacity: 0.55, depthWrite: false
   });
   const torsoC = new THREE.Vector3(0, 0.14, -0.02);
   const torsoR = new THREE.Vector3(0.2, 0.14, 0.58);
   const headC = new THREE.Vector3(0.02, 0.17, -0.72);
   const headR = new THREE.Vector3(0.115, 0.125, 0.14);
 
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), skinMat);
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), waterMat);
   torso.scale.copy(torsoR);
   torso.position.copy(torsoC);
   torso.renderOrder = 1;
   tableGroup.add(torso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), skinMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), waterMat);
   head.scale.copy(headR);
   head.position.copy(headC);
   head.renderOrder = 1;
   tableGroup.add(head);
 
-  const limbMat = skinMat;
+  const organsGroup = new THREE.Group();
+  const boneGroup = new THREE.Group();
+  tableGroup.add(organsGroup, boneGroup);
+  const brainMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), brainMat);
+  brainMesh.scale.set(headR.x * 0.72, headR.y * 0.72, headR.z * 0.72);
+  brainMesh.position.copy(headC);
+  brainMesh.renderOrder = 2;
+  tableGroup.add(brainMesh);
+  const skullShell = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), boneMat);
+  skullShell.scale.set(headR.x * 1.18, headR.y * 1.18, headR.z * 1.18);
+  skullShell.position.copy(headC);
+  skullShell.renderOrder = 2;
+  boneGroup.add(skullShell);
+
+  const ellipsoidMesh = (c, r, mat, seg = 28) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, seg, seg / 2), mat);
+    m.scale.copy(r);
+    m.position.copy(c);
+    m.renderOrder = 2;
+    return m;
+  };
+  const ORGANS = [
+    [[0.085, 0.17, -0.26], [0.075, 0.10, 0.15]],
+    [[-0.085, 0.17, -0.26], [0.075, 0.10, 0.15]],
+    [[0.065, 0.10, 0.02], [0.075, 0.05, 0.11]],
+    [[-0.05, 0.08, 0.10], [0.05, 0.06, 0.09]]
+  ];
+  for (const [c, r] of ORGANS) organsGroup.add(ellipsoidMesh(new THREE.Vector3(...c), new THREE.Vector3(...r), organMat));
+  const spine = ellipsoidMesh(new THREE.Vector3(0, 0.115, -0.02), new THREE.Vector3(0.035, 0.032, 0.55), boneMat);
+  boneGroup.add(spine);
+  for (const z of [-0.30, -0.37, -0.44, -0.51]) {
+    boneGroup.add(ellipsoidMesh(new THREE.Vector3(0, 0.15, z), new THREE.Vector3(0.16, 0.028, 0.022), boneMat));
+  }
+  boneGroup.add(ellipsoidMesh(new THREE.Vector3(0, 0.10, 0.35), new THREE.Vector3(0.15, 0.045, 0.12), boneMat));
+
+  const limbMat = waterMat;
   for (const sx of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.5, 6, 12), limbMat);
     leg.rotation.x = Math.PI / 2;
@@ -183,10 +228,13 @@ export function buildWorld(scene) {
   );
   heart.scale.set(1, 0.9, 0.95);
   heart.position.set(0.035, 0.1, -0.43);
-  tableGroup.add(heart);
+  organsGroup.add(heart);
 
   const vesselMat = new THREE.MeshStandardMaterial({
     color: 0xe11d48, emissive: 0x6d0f24, roughness: 0.35, transparent: true, opacity: 0.95
+  });
+  const neuroMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b, emissive: 0x7c3a06, roughness: 0.35, transparent: true, opacity: 0.95
   });
   const aortaCurve = new THREE.CatmullRomCurve3(toV3(AORTA_POINTS), false, 'centripetal');
   const guideCurve = new THREE.CatmullRomCurve3(
@@ -194,13 +242,35 @@ export function buildWorld(scene) {
   );
   const contrastCurve = new THREE.CatmullRomCurve3(toV3(LM_POINTS.concat(LAD_POINTS.slice(1))), false, 'centripetal');
 
+  const NEURO_ACCESS = [
+    [0.235, 0.06, -0.05], [0.2, 0.09, -0.22], [0.13, 0.12, -0.34], [0.07, 0.15, -0.44],
+    [-0.02, 0.165, -0.31], [0.0, 0.16, -0.52], [0.01, 0.17, -0.65], [0.02, 0.185, -0.76]
+  ];
+  const neuroCurve = new THREE.CatmullRomCurve3(toV3(NEURO_ACCESS), false, 'centripetal');
+  const neuroGuideCurve = neuroCurve;
+  const neuroContrastCurve = new THREE.CatmullRomCurve3(
+    toV3([[0.0, 0.16, -0.52], [0.01, 0.17, -0.65], [0.02, 0.185, -0.76], [0.0, 0.19, -0.8]]), false, 'centripetal'
+  );
+  const CAROTID_TREE = [
+    [[-0.02, 0.165, -0.31], [-0.01, 0.16, -0.45], [0.0, 0.16, -0.52], [0.01, 0.17, -0.65], [0.02, 0.185, -0.76], [0.0, 0.19, -0.8]],
+    [[0.03, 0.155, -0.4], [0.05, 0.15, -0.48], [0.05, 0.16, -0.58], [0.045, 0.17, -0.68], [0.04, 0.185, -0.76], [0.05, 0.19, -0.8]],
+    [[-0.035, 0.16, -0.58], [-0.035, 0.175, -0.7], [-0.03, 0.185, -0.78]],
+    [[0.035, 0.16, -0.58], [0.035, 0.175, -0.7], [0.03, 0.185, -0.78]]
+  ];
+  const carotidMeshes = CAROTID_TREE.map(pts => new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(toV3(pts), false, 'centripetal'), 40, 0.0042, 8), neuroMat
+  ));
+  carotidMeshes.forEach(m => { m.visible = false; tableGroup.add(m); });
+
   const aortaMesh = new THREE.Mesh(new THREE.TubeGeometry(aortaCurve, 96, 0.011, 10), vesselMat);
   tableGroup.add(aortaMesh);
-  for (const pts of [LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS]) {
+  const coronaryMeshes = [LM_POINTS, LAD_POINTS, LCX_POINTS, RCA_POINTS].map(pts => {
     const c = new THREE.CatmullRomCurve3(toV3(pts), false, 'centripetal');
     const r = pts === LM_POINTS ? 0.0065 : 0.0052;
-    tableGroup.add(new THREE.Mesh(new THREE.TubeGeometry(c, 48, r, 8), vesselMat));
-  }
+    const m = new THREE.Mesh(new THREE.TubeGeometry(c, 48, r, 8), vesselMat);
+    tableGroup.add(m);
+    return m;
+  });
 
   const cathMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3 });
   const wireMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.2, metalness: 0.8 });
@@ -250,28 +320,27 @@ export function buildWorld(scene) {
   gantry.add(arc);
 
   const source = new THREE.Group();
-  source.position.set(0, SID / 2, 0);
+  source.position.set(0, -SID / 2, 0);
   const srcBody = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.15, 0.17),
     new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.5 }));
   const coll = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.13, 4),
     new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.5 }));
-  coll.rotation.x = Math.PI;
   coll.rotation.y = Math.PI / 4;
-  coll.position.y = -0.13;
+  coll.position.y = 0.13;
   source.add(srcBody, coll);
   gantry.add(source);
 
   const beamLight = new THREE.PointLight(0xffe6b0, 0, 3.5, 1.6);
-  beamLight.position.set(0, SID / 2 - 0.05, 0);
+  beamLight.position.set(0, -SID / 2 + 0.05, 0);
   gantry.add(beamLight);
 
   const detector = new THREE.Group();
-  detector.position.set(0, -SID / 2, 0);
+  detector.position.set(0, SID / 2, 0);
   const detBody = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.07, 0.46), standMat);
   const screenMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.12 });
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.38), screenMat);
   screen.rotation.x = Math.PI / 2;
-  screen.position.y = 0.041;
+  screen.position.y = -0.041;
   detector.add(detBody, screen);
   gantry.add(detector);
 
@@ -283,21 +352,86 @@ export function buildWorld(scene) {
   beamGroup.add(...beamOuter, ...beamInner);
   gantry.add(beamGroup);
 
-  const SLICE_N = 112;
-  const SLICE_SIZE = 0.5;
-  const sliceCanvas = document.createElement('canvas');
-  sliceCanvas.width = SLICE_N;
-  sliceCanvas.height = SLICE_N;
-  const sliceCtx = sliceCanvas.getContext('2d');
-  const sliceTex = new THREE.CanvasTexture(sliceCanvas);
-  sliceTex.colorSpace = THREE.SRGBColorSpace;
-  const sliceMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(SLICE_SIZE, SLICE_SIZE),
-    new THREE.MeshBasicMaterial({ map: sliceTex, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false })
+  const PLANE_M = 256;
+  const planeCanvas = document.createElement('canvas');
+  planeCanvas.width = PLANE_M;
+  planeCanvas.height = PLANE_M;
+  const planeCtx = planeCanvas.getContext('2d');
+  const planeTex = new THREE.CanvasTexture(planeCanvas);
+  planeTex.colorSpace = THREE.SRGBColorSpace;
+  const planeGeo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE);
+  const planeMesh = new THREE.Mesh(
+    planeGeo,
+    new THREE.MeshBasicMaterial({ map: planeTex, transparent: true, side: THREE.DoubleSide, depthWrite: false })
   );
-  sliceMesh.rotation.x = Math.PI / 2;
-  sliceMesh.renderOrder = 6;
-  gantry.add(sliceMesh);
+  planeMesh.renderOrder = 6;
+  planeMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(planeGeo), new THREE.LineBasicMaterial({ color: 0x64748b })));
+  scene.add(planeMesh);
+
+  let cn = FIELD_N;
+  let cloudGeo = new THREE.BufferGeometry();
+  let ccol = null;
+  let calpha = null;
+  function buildCloudGeo(nn) {
+    cn = nn;
+    cloudGeo.dispose();
+    cloudGeo = new THREE.BufferGeometry();
+    const cpos = new Float32Array(cn ** 3 * 3);
+    ccol = new Float32Array(cn ** 3 * 3);
+    calpha = new Float32Array(cn ** 3);
+    const h = FIELD_SIZE / 2, cell = FIELD_SIZE / cn;
+    let p = 0;
+    for (let k = 0; k < cn; k++) {
+      for (let j = 0; j < cn; j++) {
+        for (let i = 0; i < cn; i++) {
+          cpos[p * 3] = ISO.x - h + (i + 0.5) * cell;
+          cpos[p * 3 + 1] = ISO.y - h + (j + 0.5) * cell;
+          cpos[p * 3 + 2] = ISO.z - h + (k + 0.5) * cell;
+          p++;
+        }
+      }
+    }
+    cloudGeo.setAttribute('position', new THREE.BufferAttribute(cpos, 3));
+    cloudGeo.setAttribute('aColor', new THREE.BufferAttribute(ccol, 3));
+    cloudGeo.setAttribute('aAlpha', new THREE.BufferAttribute(calpha, 1));
+    cloud.geometry = cloudGeo;
+    cloudMat.uniforms.uSize.value = (FIELD_SIZE / cn * 2.6);
+  }
+  const cloudMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uSize: { value: (FIELD_SIZE / cn * 2.6) } },
+    vertexShader: `
+      uniform float uSize;
+      attribute vec3 aColor;
+      attribute float aAlpha;
+      varying vec3 vC;
+      varying float vA;
+      void main() {
+        vC = aColor;
+        vA = aAlpha;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = uSize * (280.0 / max(1.0, -mv.z));
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vC;
+      varying float vA;
+      void main() {
+        float m = smoothstep(0.5, 0.12, length(gl_PointCoord - 0.5));
+        float a = vA * m * m;
+        if (a < 0.004) discard;
+        gl_FragColor = vec4(vC * a, a);
+      }
+    `
+  });
+  const cloud = new THREE.Points(cloudGeo, cloudMat);
+  cloud.renderOrder = 7;
+  cloud.frustumCulled = false;
+  scene.add(cloud);
+  buildCloudGeo(cn);
 
   let tableY = TABLE_BASE;
   const world = {
@@ -305,36 +439,222 @@ export function buildWorld(scene) {
     tableGroup, heart,
     skinPoints, skinPos, skinNor, nPts,
     ellipsoidsLocal: [
-      { c: torsoC.clone(), r: torsoR.clone() },
-      { c: headC.clone(), r: headR.clone() }
+      { c: headC.clone(), r: headR.clone().multiplyScalar(1.18), mu: 3 },
+      { c: new THREE.Vector3(0, 0.115, -0.02), r: new THREE.Vector3(0.035, 0.032, 0.55), mu: 3 },
+      { c: new THREE.Vector3(0, 0.15, -0.30), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.15, -0.37), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.15, -0.44), r: new THREE.Vector3(0.16, 0.028, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.14, -0.51), r: new THREE.Vector3(0.15, 0.026, 0.022), mu: 3 },
+      { c: new THREE.Vector3(0, 0.10, 0.35), r: new THREE.Vector3(0.15, 0.045, 0.12), mu: 3 },
+      { c: torsoC.clone(), r: torsoR.clone(), mu: 1 },
+      { c: headC.clone(), r: headR.clone(), mu: 1 },
+      { c: new THREE.Vector3(0, -0.05, 0), r: new THREE.Vector3(0.28, 0.05, 1.05), mu: 1 }
     ],
+    tableMesh: mattress,
+    tableOff: { x: 0, z: 0 },
+    setTableOffset(x, z) {
+      this.tableOff.x = THREE.MathUtils.clamp(x, -0.3, 0.3);
+      this.tableOff.z = THREE.MathUtils.clamp(z, -0.8, 0.8);
+      tableGroup.position.x = this.tableOff.x;
+      tableGroup.position.z = this.tableOff.z;
+    },
+    setLayers(o) {
+      organsGroup.visible = !!o.organs;
+      boneGroup.visible = !!o.bone;
+      brainMesh.visible = !!o.brain;
+    },
+    setCollimating(b) {
+      for (const m of beamOuter) {
+        m.material.uniforms.uI.value = b ? 0.42 : 0.075;
+        m.material.uniforms.uColor.value.set(b ? 0xfff6d8 : 0xffd27a);
+      }
+      for (const m of beamInner) {
+        m.material.uniforms.uI.value = b ? 0.75 : 0.16;
+        m.material.uniforms.uColor.value.set(b ? 0xfff6d8 : 0xffd27a);
+      }
+    },
     aortaCurve, guideCurve, contrastCurve,
     catheterMesh, wireMesh, contrastMesh,
-    slice: { canvas: sliceCanvas, ctx: sliceCtx, tex: sliceTex, n: SLICE_N, size: SLICE_SIZE },
+    planeMesh, cloud, PLANE_M,
+    planeAxes: {
+      x: { n: [1, 0, 0], u: [0, 0, 1], v: [0, 1, 0] },
+      y: { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, 1] },
+      z: { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] }
+    },
+    setPlane(off, quat) {
+      planeMesh.position.copy(ISO).add(off);
+      planeMesh.quaternion.copy(quat);
+      this.planeOffsetVec = off;
+      this.planeQuat = quat;
+    },
+    planeBasis() {
+      const q = planeMesh.quaternion;
+      return {
+        n: new THREE.Vector3(0, 0, 1).applyQuaternion(q).toArray(),
+        u: new THREE.Vector3(1, 0, 0).applyQuaternion(q).toArray(),
+        v: new THREE.Vector3(0, 1, 0).applyQuaternion(q).toArray(),
+        center: planeMesh.position.toArray()
+      };
+    },
+    setPlaneVisible(b) {
+      planeMesh.visible = b;
+    },
+    drawPlane(data, m, o) {
+      const img = planeCtx.createImageData(m, m);
+      const c = [0, 0, 0];
+      const range = Math.max(1e-9, o.scaleMax - o.scaleMin);
+      for (let b = 0; b < m; b++) {
+        for (let a = 0; a < m; a++) {
+          const val = data[b * m + a];
+          const ox = ((m - 1 - b) * m + a) * 4;
+          const u = val * o.unitFactor;
+          if (u <= o.scaleMin + 0.5) {
+            img.data[ox] = 245; img.data[ox + 1] = 248; img.data[ox + 2] = 252;
+          } else {
+            const t = o.log ? logMap(u - o.scaleMin, range) : Math.max(0, Math.min(1, (u - o.scaleMin) / range));
+            colormapNamed(o.cmap, t, c);
+            img.data[ox] = c[0] * 255; img.data[ox + 1] = c[1] * 255; img.data[ox + 2] = c[2] * 255;
+          }
+          img.data[ox + 3] = 255;
+        }
+      }
+      planeCtx.putImageData(img, 0, 0);
+
+      const pxPerM = m / PLANE_SIZE;
+      for (let g = -1.3; g <= 1.3; g += 0.1) {
+        const isMajor = Math.abs(g / 0.5 - Math.round(g / 0.5)) < 1e-6;
+        const p = ((g + PLANE_SIZE / 2) / PLANE_SIZE) * m;
+        if (p < 0 || p > m) continue;
+        planeCtx.strokeStyle = isMajor ? 'rgba(71,85,105,0.55)' : 'rgba(100,116,139,0.28)';
+        planeCtx.lineWidth = isMajor ? 1.4 : 0.7;
+        planeCtx.beginPath();
+        planeCtx.moveTo(p, 0); planeCtx.lineTo(p, m);
+        planeCtx.moveTo(0, p); planeCtx.lineTo(m, p);
+        planeCtx.stroke();
+      }
+
+      const stripH = Math.round(m * 0.115);
+      planeCtx.fillStyle = 'rgba(255,255,255,0.9)';
+      planeCtx.fillRect(0, m - stripH, m, stripH);
+      const bx = m * 0.05, bw = m * 0.9, by = m - stripH + Math.round(stripH * 0.12), bh = Math.round(stripH * 0.38);
+      const grad = planeCtx.createLinearGradient(bx, 0, bx + bw, 0);
+      for (let i = 0; i <= 10; i++) {
+        colormapNamed(o.cmap, i / 10, c);
+        grad.addColorStop(i / 10, `rgb(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0})`);
+      }
+      planeCtx.fillStyle = grad;
+      planeCtx.fillRect(bx, by, bw, bh);
+      planeCtx.strokeStyle = '#0f172a';
+      planeCtx.lineWidth = 1;
+      planeCtx.strokeRect(bx, by, bw, bh);
+      planeCtx.fillStyle = '#0f172a';
+      planeCtx.font = `${Math.max(9, Math.round(stripH * 0.34))}px sans-serif`;
+      planeCtx.textBaseline = 'middle';
+      const fmt = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v * 10) / 10);
+      planeCtx.fillText(fmt(o.scaleMin), bx, by + bh + stripH * 0.36);
+      planeCtx.textAlign = 'right';
+      planeCtx.fillText(fmt(o.scaleMax) + ' ' + (o.unit || ''), bx + bw, by + bh + stripH * 0.36);
+      planeCtx.textAlign = 'left';
+
+      const barLen = pxPerM;
+      const gridStep = 0.1 * pxPerM;
+      const xMid = (Math.floor((m * 0.78) / gridStep) + 0.5) * gridStep;
+      const barY = m - 3;
+      planeCtx.strokeStyle = '#0f172a';
+      planeCtx.fillStyle = '#0f172a';
+      planeCtx.lineWidth = 1.6;
+      planeCtx.beginPath();
+      planeCtx.moveTo(xMid - barLen / 2, barY);
+      planeCtx.lineTo(xMid + barLen / 2, barY);
+      planeCtx.stroke();
+      for (const s of [-1, 1]) {
+        const ax = xMid + s * barLen / 2;
+        planeCtx.beginPath();
+        planeCtx.moveTo(ax, barY);
+        planeCtx.lineTo(ax - s * 5, barY - 3.5);
+        planeCtx.lineTo(ax - s * 5, barY + 3.5);
+        planeCtx.closePath();
+        planeCtx.fill();
+      }
+      planeCtx.font = `${Math.max(8, Math.round(m * 0.042))}px sans-serif`;
+      planeCtx.fillText('1 m', xMid - 8, barY - 8);
+
+      planeTex.needsUpdate = true;
+    },
+    setCloudVisible(b) {
+      cloud.visible = b;
+    },
+    rebuildCloud(n) {
+      buildCloudGeo(n);
+    },
+    updateCloud(field, o, rateFn) {
+      const n = field.n;
+      const c = [0, 0, 0];
+      const h = field.size / 2, cell = field.size / n, ctr = field.center;
+      const range = Math.max(1e-9, o.scaleMax - o.scaleMin);
+      const thr = (o.scaleMin + 0.02 * range) / o.unitFactor;
+      for (let id = 0; id < n ** 3; id++) {
+        const k = Math.floor(id / (n * n)), j = Math.floor(id / n) % n, i = id % n;
+        const x = ctr.x - h + (i + 0.5) * cell, y = ctr.y - h + (j + 0.5) * cell, z = ctr.z - h + (k + 0.5) * cell;
+        const d = rateFn ? rateFn(x, y, z) : field.data[id];
+        if (d < thr) {
+          calpha[id] = 0;
+          continue;
+        }
+        const u = d * o.unitFactor;
+        const t = o.log ? logMap(u - o.scaleMin, range) : Math.max(0, Math.min(1, (u - o.scaleMin) / range));
+        colormapNamed(o.cmap, t, c);
+        ccol[id * 3] = c[0];
+        ccol[id * 3 + 1] = c[1];
+        ccol[id * 3 + 2] = c[2];
+        calpha[id] = 0.015 + 0.4 * t;
+      }
+      cloudGeo.attributes.aColor.needsUpdate = true;
+      cloudGeo.attributes.aAlpha.needsUpdate = true;
+    },
     tableY,
     setTableY(y) {
       tableY = y;
       tableGroup.position.y = y;
+      pedestal.position.y = y - 0.47;
       pedestal.scale.y = Math.max(0.05, y / 0.8);
     },
     setGantry(raoDeg, cranDeg) {
       gantry.rotation.z = THREE.MathUtils.degToRad(raoDeg);
       gantry.rotation.x = THREE.MathUtils.degToRad(cranDeg);
     },
+    anatomy: 'hkl',
+    setAnatomyMode(mode) {
+      this.anatomy = mode;
+      for (const m of coronaryMeshes) m.visible = mode === 'hkl';
+      for (const m of carotidMeshes) m.visible = mode === 'neuro';
+      aortaMesh.visible = true;
+      this._lastCath = -1;
+      this._lastContrast = -1;
+    },
+    setIso(v) {
+      gantry.position.copy(v);
+    },
+    activeCurves() {
+      return this.anatomy === 'neuro'
+        ? { cath: neuroCurve, guide: neuroGuideCurve, contrast: neuroContrastCurve }
+        : { cath: aortaCurve, guide: guideCurve, contrast: contrastCurve };
+    },
     setCatheter(u) {
       const uc = Math.max(0, Math.min(1, u));
       if (Math.abs(uc - (this._lastCath ?? -1)) < 0.0005) return;
       this._lastCath = uc;
+      const C = this.activeCurves();
       const uw = Math.max(0, Math.min(1, uc * 1.12 + 0.015));
       catheterMesh.visible = uc > 0.002;
       wireMesh.visible = uw > 0.004;
       if (catheterMesh.visible) {
         catheterMesh.geometry.dispose();
-        catheterMesh.geometry = new THREE.TubeGeometry(new PartialCurve(aortaCurve, Math.max(uc, 0.01)), 96, 0.0038, 8);
+        catheterMesh.geometry = new THREE.TubeGeometry(new PartialCurve(C.cath, Math.max(uc, 0.01)), 96, 0.0038, 8);
       }
       if (wireMesh.visible) {
         wireMesh.geometry.dispose();
-        wireMesh.geometry = new THREE.TubeGeometry(new PartialCurve(guideCurve, Math.max(uw, 0.01)), 128, 0.0016, 6);
+        wireMesh.geometry = new THREE.TubeGeometry(new PartialCurve(C.guide, Math.max(uw, 0.01)), 128, 0.0016, 6);
       }
     },
     setContrast(u, opacity) {
@@ -345,7 +665,7 @@ export function buildWorld(scene) {
       contrastMesh.visible = uu > 0.01 && opacity > 0.01;
       if (contrastMesh.visible) {
         contrastMesh.geometry.dispose();
-        contrastMesh.geometry = new THREE.TubeGeometry(new PartialCurve(contrastCurve, Math.max(uu, 0.02)), 64, 0.0075, 8);
+        contrastMesh.geometry = new THREE.TubeGeometry(new PartialCurve(this.activeCurves().contrast, Math.max(uu, 0.02)), 64, 0.0075, 8);
         contrastMesh.material.opacity = opacity;
       }
     },
@@ -357,12 +677,12 @@ export function buildWorld(scene) {
     },
     getSourceWorld(out) {
       gantry.updateMatrixWorld(true);
-      return out.set(0, SID / 2, 0).applyMatrix4(gantry.matrixWorld);
+      return out.set(0, -SID / 2, 0).applyMatrix4(gantry.matrixWorld);
     },
     getBeamDirWorld(out) {
       gantry.updateMatrixWorld(true);
-      const a = new THREE.Vector3(0, SID / 2, 0).applyMatrix4(gantry.matrixWorld);
-      const b = new THREE.Vector3(0, -1, 0).applyMatrix4(gantry.matrixWorld);
+      const a = new THREE.Vector3(0, -SID / 2, 0).applyMatrix4(gantry.matrixWorld);
+      const b = new THREE.Vector3(0, 1, 0).applyMatrix4(gantry.matrixWorld);
       return out.copy(b).sub(a).normalize();
     }
   };
